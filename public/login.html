@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VitaAI — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#060c18;--surface:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.08);--primary:#3dffc0;--secondary:#7b6fff;--text:#e8f0fe;--muted:rgba(232,240,254,0.5);}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow:hidden;}
+body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse 70% 50% at 15% 40%,rgba(61,255,192,0.07) 0%,transparent 60%),radial-gradient(ellipse 50% 60% at 85% 70%,rgba(123,111,255,0.09) 0%,transparent 60%);pointer-events:none;}
+.left{width:45%;background:linear-gradient(145deg,rgba(61,255,192,0.06),rgba(123,111,255,0.08));border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;padding:60px;position:relative;z-index:1;}
+.brand{font-family:'Syne',sans-serif;font-size:36px;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;}
+.tagline{font-size:15px;color:var(--muted);margin-bottom:48px;line-height:1.6;}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.stat-box{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:16px;padding:20px;}
+.stat-num{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--primary);}
+.stat-txt{font-size:12px;color:var(--muted);margin-top:4px;}
+.right{flex:1;display:flex;align-items:center;justify-content:center;padding:40px;position:relative;z-index:1;}
+.card{width:100%;max-width:420px;}
+.card-title{font-family:'Syne',sans-serif;font-size:26px;font-weight:700;margin-bottom:4px;}
+.card-sub{font-size:14px;color:var(--muted);margin-bottom:28px;}
+.tabs{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:24px;}
+.tab{flex:1;padding:10px;border:none;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;border-radius:9px;transition:all .2s;}
+.tab.active{background:rgba(61,255,192,0.12);color:var(--primary);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+.form-group{margin-bottom:16px;}
+label{font-size:12px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:6px;}
+input{width:100%;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s;}
+input:focus{border-color:var(--primary);}
+input::placeholder{color:var(--muted);}
+.btn-main{width:100%;padding:14px;background:linear-gradient(135deg,var(--primary),#1de9b6);color:var(--bg);border:none;border-radius:12px;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:8px;}
+.btn-main:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 8px 24px rgba(61,255,192,0.3);}
+.btn-secondary{width:100%;padding:12px;background:rgba(123,111,255,0.1);color:var(--secondary);border:1px solid rgba(123,111,255,0.3);border-radius:12px;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;transition:all .2s;margin-top:8px;}
+.btn-secondary:hover{background:rgba(123,111,255,0.2);}
+.msg{padding:10px 14px;border-radius:10px;font-size:13px;margin-top:12px;display:none;}
+.msg.error{background:rgba(255,107,157,.1);border:1px solid rgba(255,107,157,.3);color:#ff6b9d;}
+.msg.success{background:rgba(61,255,192,.1);border:1px solid rgba(61,255,192,.3);color:var(--primary);}
+.msg.info{background:rgba(123,111,255,.1);border:1px solid rgba(123,111,255,.3);color:#7b6fff;}
+.link{text-align:center;margin-top:20px;font-size:13px;color:var(--muted);}
+.link a{color:var(--primary);text-decoration:none;}
+.camera-box{border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:12px;}
+#videoBox{width:100%;height:100%;object-fit:cover;display:block;}
+@media(max-width:768px){.left{display:none;}.right{padding:24px;}}
+</style>
+</head>
+<body>
+<div class="left">
+  <div class="brand">VitaAI</div>
+  <div class="tagline">Welcome back! Your AI health coach<br/>has been waiting for you. 🌿</div>
+  <div class="stats">
+    <div class="stat-box"><div class="stat-num">84</div><div class="stat-txt">Your health score</div></div>
+    <div class="stat-box"><div class="stat-num">7d</div><div class="stat-txt">Current streak</div></div>
+    <div class="stat-box"><div class="stat-num">24/7</div><div class="stat-txt">AI available</div></div>
+    <div class="stat-box"><div class="stat-num">100%</div><div class="stat-txt">Free forever</div></div>
+  </div>
+</div>
+<div class="right">
+  <div class="card">
+    <div class="card-title">Welcome Back</div>
+    <div class="card-sub">Login to your VitaAI health dashboard</div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('face')">😊 Face Login</button>
+      <button class="tab" onclick="switchTab('password')">🔑 Password</button>
+    </div>
+    <!-- FACE LOGIN -->
+    <div class="tab-content active" id="tabFace">
+      <div class="form-group">
+        <label>Your Email</label>
+        <input id="faceEmail" type="email" placeholder="you@example.com"/>
+      </div>
+      <div class="camera-box"><video id="videoBox" autoplay playsinline muted></video></div>
+      <canvas id="canvas" style="display:none"></canvas>
+      <button class="btn-secondary" onclick="startCamera()">📷 Open Camera</button>
+      <button class="btn-main" onclick="faceLogin()">😊 Scan Face & Login</button>
+      <div id="faceMsg" class="msg"></div>
+    </div>
+    <!-- PASSWORD LOGIN -->
+    <div class="tab-content" id="tabPassword">
+      <div class="form-group">
+        <label>Email</label>
+        <input id="email" type="email" placeholder="you@example.com"/>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input id="password" type="password" placeholder="Your password"/>
+      </div>
+      <button class="btn-main" onclick="passwordLogin()">🔑 Login</button>
+      <div id="passMsg" class="msg"></div>
+    </div>
+    <div class="link">Don't have an account? <a href="signup.html">Create one free →</a></div>
+  </div>
+</div>
+<script>
+if(localStorage.getItem('token'))window.location.href='home.html';
+let stream=null;
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',(t==='face'&&i===0)||(t==='password'&&i===1)));
+  document.getElementById('tabFace').classList.toggle('active',t==='face');
+  document.getElementById('tabPassword').classList.toggle('active',t==='password');
+  if(t!=='face'&&stream){stream.getTracks().forEach(x=>x.stop());stream=null;}
+}
+function showMsg(id,text,type){const el=document.getElementById(id);el.textContent=text;el.className='msg '+type;el.style.display='block';}
+async function startCamera(){
+  try{stream=await navigator.mediaDevices.getUserMedia({video:true});document.getElementById('videoBox').srcObject=stream;showMsg('faceMsg','Camera ready. Look straight at camera.','info');}
+  catch(e){showMsg('faceMsg','Camera denied. Allow camera access.','error');}
+}
+async function faceLogin(){
+  const email=document.getElementById('faceEmail').value.trim();
+  const video=document.getElementById('videoBox');
+  const canvas=document.getElementById('canvas');
+  if(!email){showMsg('faceMsg','Enter your email first.','error');return;}
+  if(!video.srcObject){showMsg('faceMsg','Open camera first.','error');return;}
+  canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+  canvas.getContext('2d').drawImage(video,0,0);
+  showMsg('faceMsg','🔍 Scanning face…','info');
+  try{
+    const fr=await fetch('/face/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,img:canvas.toDataURL('image/jpeg')})});
+    const fd=await fr.json();
+    if(!fd.ok){showMsg('faceMsg','❌ '+fd.msg,'error');return;}
+    showMsg('faceMsg','✅ Face matched! Logging in…','success');
+    const lr=await fetch('/face-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const ld=await lr.json();
+    if(ld.token){localStorage.setItem('token',ld.token);if(stream)stream.getTracks().forEach(t=>t.stop());window.location.href='home.html';}
+    else showMsg('faceMsg','❌ '+ld.message,'error');
+  }catch(e){showMsg('faceMsg','⚠️ Server error. Make sure server is running.','error');}
+}
+async function passwordLogin(){
+  const email=document.getElementById('email').value.trim();
+  const pass=document.getElementById('password').value;
+  if(!email||!pass){showMsg('passMsg','Please fill all fields.','error');return;}
+  try{
+    const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    const d=await r.json();
+    if(d.token){localStorage.setItem('token',d.token);window.location.href='home.html';}
+    else showMsg('passMsg','❌ '+d.message,'error');
+  }catch(e){showMsg('passMsg','⚠️ Server error.','error');}
+}
+</script>
+</body>
+</html>

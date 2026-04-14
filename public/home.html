@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VitaAI — Health Dashboard</title>
+<link rel="stylesheet" href="home.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+<body>
+  
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">VitaAI</div>
+    <div class="logo-sub">Health Intelligence</div>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Main</div>
+    <div class="ni active" onclick="goPage('dashboard')"><span class="ni-icon">🏠</span><span>Dashboard</span></div>
+    <div class="ni" onclick="goPage('mood')"><span class="ni-icon">😊</span><span>Mood Scanner</span></div>
+    <div class="ni" onclick="goPage('checkin')"><span class="ni-icon">✅</span><span>Daily Check-in</span><span class="ni-badge" id="checkinBadge">!</span></div>
+    <div class="ni" onclick="goPage('aichat')"><span class="ni-icon">🧠</span><span>Health AI Chat</span></div>
+    <div class="ni" onclick="goPage('dailyreport')"><span class="ni-icon">📋</span><span>Daily Report</span></div>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Tools</div>
+    <div class="ni" onclick="goPage('voice')"><span class="ni-icon">🎙️</span><span>Voice Coach</span></div>
+    <div class="ni" onclick="goPage('blood')"><span class="ni-icon">🩺</span><span>Report Analyzer</span></div>
+    <div class="ni" onclick="goPage('tracker')"><span class="ni-icon">📊</span><span>Health Tracker</span></div>
+    <div class="ni" onclick="goPage('profile')"><span class="ni-icon">👤</span><span>My Profile</span></div>
+  </div>
+  <div class="sb-bot">
+    <div class="usr" onclick="goPage('profile')">
+      <div class="usr-av" id="userAv" style="overflow:hidden">
+        <img id="userAvImg" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%"/>
+        <span id="userAvLetter">?</span>
+      </div>
+      <div><div class="usr-name" id="sidebarName">Loading…</div><div class="usr-plan">⭐ Pro Member</div></div>
+    </div>
+    <button class="logout-btn" onclick="logout()">🚪 Logout</button>
+  </div>
+</aside>
+
+<main class="main">
+
+<!-- ════ DASHBOARD ════ -->
+<div class="page active" id="pg-dashboard">
+  <div class="topbar">
+    <div>
+      <div class="pg-title" id="greetTitle">Hello, <span id="userName">User</span> 👋</div>
+      <div style="color:var(--muted);font-size:13px;margin-top:3px" id="todayDate"></div>
+    </div>
+    <div class="topbar-r">
+      <button class="btn btn-g" onclick="goPage('checkin')">📋 Check-in</button>
+      <button class="btn btn-p" onclick="goPage('aichat')">🧠 Ask AI</button>
+    </div>
+  </div>
+
+  <!-- FIRST TIME WELCOME (show only once) -->
+  <div class="wb" id="wbNew" style="display:none;flex-direction:column;gap:14px">
+    <div>
+      <h2>👋 Welcome to VitaAI!</h2>
+      <p style="margin-top:6px;line-height:1.6;font-size:13.5px">Your dashboard shows <b>only real data</b> from your check-ins. Start your first check-in to see your health score, steps, sleep trends and more.</p>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="goPage('checkin');dismissWelcome()">✅ Start First Check-in →</button>
+      <button class="btn btn-g" onclick="goPage('profile');dismissWelcome()">👤 Setup Profile</button>
+    </div>
+  </div>
+
+  <!-- SCORE BANNER -->
+  <div class="wb" id="wbScore" style="display:none">
+    <div>
+      <h2>Your Health Score</h2>
+      <p id="scoreSubtitle" style="margin-top:4px"></p>
+    </div>
+    <div style="text-align:right">
+      <div class="score-n" id="scoreNum">0</div>
+      <div class="score-l" id="scoreLabel">/ 100</div>
+    </div>
+    <div id="streakBadge" style="display:none">
+      <div class="streak-badge">🔥 <span id="streakNum">0</span> day streak</div>
+    </div>
+  </div>
+
+  <!-- STAT CARDS -->
+  <div class="sg">
+    <div class="sc" style="--cc:#3dffc0" onclick="goPage('checkin')">
+      <div class="si">💧</div><div class="sl">Water Intake</div>
+      <div class="sv" id="stWater" style="color:var(--primary)">—</div>
+      <div class="sc-sub" id="stWaterSub" style="color:var(--muted)">Log in check-in</div>
+    </div>
+    <div class="sc" style="--cc:#7b6fff" onclick="goPage('checkin')">
+      <div class="si">🏃</div><div class="sl">Steps Today</div>
+      <div class="sv" id="stSteps" style="color:var(--secondary)">—</div>
+      <div class="sc-sub" id="stStepsSub" style="color:var(--muted)">Log in check-in</div>
+    </div>
+    <div class="sc" style="--cc:#ff6b9d" onclick="goPage('checkin')">
+      <div class="si">🔥</div><div class="sl">Calories Burned</div>
+      <div class="sv" id="stCal" style="color:var(--accent)">—</div>
+      <div class="sc-sub" id="stCalSub" style="color:var(--muted)">Log in check-in</div>
+    </div>
+    <div class="sc" style="--cc:#ffd166" onclick="goPage('checkin')">
+      <div class="si">😴</div><div class="sl">Sleep Last Night</div>
+      <div class="sv" id="stSleep" style="color:var(--gold)">—</div>
+      <div class="sc-sub" id="stSleepSub" style="color:var(--muted)">Log in check-in</div>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="card">
+      <div class="ch"><div class="ct">📈 Health Score Trend</div><span id="avgTag" style="font-size:11px;color:var(--primary)"></span></div>
+      <div class="cb">
+        <div class="no-data" id="emWeek"><div style="font-size:30px;margin-bottom:8px">📊</div><div style="font-size:13px;color:var(--muted)">Do daily check-ins to build your trend</div></div>
+        <canvas id="weekChart" style="display:none"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">⚡ Quick Actions</div></div>
+      <div class="cb" style="display:flex;flex-direction:column;gap:9px">
+        <button class="btn btn-g" style="width:100%;text-align:left;font-size:13px" onclick="goPage('mood')">😊 Scan My Mood</button>
+        <button class="btn btn-g" style="width:100%;text-align:left;font-size:13px" onclick="goPage('checkin')">✅ Daily Check-in</button>
+        <button class="btn btn-g" style="width:100%;text-align:left;font-size:13px" onclick="goPage('dailyreport')">📋 Daily Health Report</button>
+        <button class="btn btn-g" style="width:100%;text-align:left;font-size:13px" onclick="goPage('voice')">🎙️ Voice Coach</button>
+        <button class="btn btn-p" style="width:100%;text-align:left;font-size:13px" onclick="goPage('aichat')">🧠 Ask Health AI</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">😊 Mood Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emMood"><div style="font-size:24px">😐</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Check-in daily to track mood</div></div>
+        <canvas id="moodChart" style="display:none"></canvas>
+        <!-- Mood legend -->
+        <div id="moodLegend" style="display:none;margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;font-size:11px">
+          <span style="color:#3dffc0">■ Great/Good (4-5)</span>
+          <span style="color:#7b6fff">■ Neutral (3)</span>
+          <span style="color:#ff6b9d">■ Low (1-2)</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">💤 Sleep Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emSleep"><div style="font-size:24px">💤</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Check-in daily to track sleep</div></div>
+        <canvas id="sleepChart" style="display:none"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2" id="actCharts" style="display:none">
+    <div class="card">
+      <div class="ch"><div class="ct">🏃 Steps Trend</div></div>
+      <div class="cb"><canvas id="stepsChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">🔥 Calories Trend</div></div>
+      <div class="cb"><canvas id="calChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" id="histCard" style="display:none">
+    <div class="ch"><div class="ct">📋 Recent Check-ins</div><span id="histCount" style="font-size:12px;color:var(--muted)"></span></div>
+    <div class="cb" id="histBody" style="overflow-x:auto"></div>
+  </div>
+</div>
+
+<!-- ════ MOOD SCANNER ════ -->
+<div class="page" id="pg-mood">
+  <div class="topbar"><div class="pg-title">😊 Mood <span>Scanner</span></div><button class="btn btn-g" onclick="stopCam();goPage('dashboard')">⬅ Back</button></div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">📸 Face Emotion Detection</div></div>
+      <div class="mood-wrap">
+        <video id="camFeed" autoplay playsinline muted></video>
+        <canvas id="camCanvas" style="display:none"></canvas>
+        <button class="scan-btn" onclick="scanMood()">🔍 Scan My Mood Now</button>
+        <div class="mood-res">
+          <span class="m-emoji" id="mEmoji">😐</span>
+          <div class="m-label" id="mLabel">Awaiting Scan…</div>
+          <div class="m-desc" id="mDesc">Click Scan to detect your emotional state from your face expression.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">🧠 AI Health Advice for Your Mood</div></div>
+      <div class="cb" id="moodAdvice" style="font-size:13.5px;line-height:1.7;color:var(--muted)">
+        <p>After scanning, SyamHealth AI gives you personalized health advice based on your current emotional state.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+          <div style="padding:9px 13px;background:var(--surface);border-radius:10px;font-size:13px">😔 <b>Sad/Low</b> → Omega-3 rich foods (walnuts, fish) + 10-min sunlight walk</div>
+          <div style="padding:9px 13px;background:var(--surface);border-radius:10px;font-size:13px">😤 <b>Stressed</b> → 4-7-8 breathing + magnesium-rich foods (dark chocolate, spinach)</div>
+          <div style="padding:9px 13px;background:var(--surface);border-radius:10px;font-size:13px">😴 <b>Tired</b> → Iron-rich snack + 15-min power nap or walk</div>
+          <div style="padding:9px 13px;background:var(--surface);border-radius:10px;font-size:13px">😊 <b>Happy</b> → Best time to exercise! Your cortisol is low 💪</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ DAILY CHECK-IN (6 STEPS - vitals removed) ════ -->
+<div class="page" id="pg-checkin">
+  <div class="topbar"><div class="pg-title">✅ Daily <span>Check-in</span></div></div>
+  <div class="card" style="max-width:600px;margin:0 auto">
+    <div class="cb">
+      <div class="prog-dots">
+        <div class="pd cur" id="d0"></div><div class="pd" id="d1"></div>
+        <div class="pd" id="d2"></div><div class="pd" id="d3"></div>
+        <div class="pd" id="d4"></div><div class="pd" id="d5"></div>
+      </div>
+      <div id="ciContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ HEALTH AI CHAT ════ -->
+<div class="page" id="pg-aichat">
+  <div class="topbar">
+    <div class="pg-title">🧠 <span>SyamHealth AI</span></div>
+    <span style="font-size:12px;color:var(--muted)">Powered by LLaMA3 · Free · Knows your health data</span>
+  </div>
+  <div class="card" style="max-width:740px">
+    <div class="chat-wrap">
+      <div class="chat-msgs" id="chatMsgs">
+        <div class="msg bot">👋 Hello! I'm <b>SyamHealth AI</b>.<br/><br/>I know your health history, steps, sleep, calories and vitals. Ask me anything — symptoms, diet, exercise, sleep, stress relief, or just how to feel better today! 🌿</div>
+      </div>
+      <div class="chat-ir">
+        <input class="chat-in" id="chatIn" placeholder="Ask SyamHealth AI about your health…" onkeydown="if(event.key==='Enter')sendChat()"/>
+        <button class="chat-send" onclick="sendChat()">➤</button>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-g" onclick="quickAsk('Why am I always tired?')">💤 Always tired?</button>
+    <button class="btn btn-g" onclick="quickAsk('What foods improve my energy?')">🥗 Energy foods</button>
+    <button class="btn btn-g" onclick="quickAsk('How to improve sleep quality?')">😴 Better sleep</button>
+    <button class="btn btn-g" onclick="quickAsk('Stress relief tips for today')">🧘 Stress relief</button>
+    <button class="btn btn-g" onclick="quickAsk('How many steps should I walk daily?')">🏃 Steps goal</button>
+    <button class="btn btn-g" onclick="quickAsk('Best morning health routine for me?')">🌅 Morning routine</button>
+  </div>
+</div>
+
+<!-- ════ DAILY HEALTH REPORT ════ -->
+<div class="page" id="pg-dailyreport">
+  <div class="topbar">
+    <div class="pg-title">📋 Daily Health <span>Report</span></div>
+    <button class="btn btn-p" onclick="loadDailyReport()">🔄 Refresh Report</button>
+  </div>
+  <div class="card" style="max-width:740px">
+    <div class="ch"><div class="ct">🏥 Your Personalized Health Report</div><span style="font-size:11px;color:var(--muted)" id="reportDate"></span></div>
+    <div class="cb" id="dailyReportBody">
+      <div class="no-data" style="min-height:200px">
+        <div style="font-size:36px;margin-bottom:12px">📋</div>
+        <div style="font-size:14px;color:var(--muted);margin-bottom:16px">Click "Refresh Report" to generate your daily AI health analysis</div>
+        <button class="btn btn-p" onclick="loadDailyReport()">📋 Generate My Report</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ VOICE COACH ════ -->
+<div class="page" id="pg-voice">
+  <div class="topbar"><div class="pg-title">🎙️ Voice <span>Coach</span></div></div>
+  <div class="g2">
+    <div class="card">
+      <div class="voice-area">
+        <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:600;text-align:center">Talk to SyamHealth AI Coach</div>
+        <p style="font-size:12.5px;color:var(--muted);text-align:center">Hold the orb → speak clearly → release for AI answer</p>
+        <div class="v-orb" id="vOrb" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice(event)" ontouchend="stopVoice()">🎙️</div>
+        <div class="v-status" id="vStatus">Hold the orb to speak</div>
+        <div class="v-trans" id="vTrans">Your speech and AI reply will appear here…</div>
+        <div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.5">
+          💡 Tip: Hold for 2-3 seconds before speaking. Speak clearly in a quiet room.
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">💬 Conversation Log</div></div>
+      <div class="cb" id="vHistory" style="display:flex;flex-direction:column;gap:9px;max-height:310px;overflow-y:auto;font-size:13px;line-height:1.6">
+        <div style="color:var(--muted);font-style:italic">Your conversation will appear here…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ REPORT ANALYZER (any health report) ════ -->
+<div class="page" id="pg-blood">
+  <div class="topbar"><div class="pg-title">🩺 Health Report <span>Analyzer</span></div></div>
+  <div style="background:var(--pdim);border:1px solid var(--glow);border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;font-size:13px;line-height:1.6">
+    📄 Supports <b>any health report</b>: Blood test, Urine test, Thyroid, Diabetes, Lipid panel, Liver/Kidney function, CBC, and more. AI explains all values and tells you exactly what to do.
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="cb">
+        <div class="upload-z" onclick="document.getElementById('bFile').click()">
+          <div class="u-icon">📄</div>
+          <div class="u-title">Upload Any Health Report</div>
+          <div class="u-sub">JPG / PNG image · AI reads &amp; explains every value</div>
+        </div>
+        <input type="file" id="bFile" accept=".jpg,.jpeg,.png" style="display:none" onchange="analyzeReport(this)"/>
+        <div id="bResult" style="margin-top:14px"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">✍️ Paste Report Text</div></div>
+      <div class="cb">
+        <textarea id="reportText" class="fi" style="min-height:120px;resize:vertical" placeholder="Paste any health report text here…&#10;&#10;Examples:&#10;Hemoglobin: 11.2 g/dL&#10;TSH: 6.5 mIU/L&#10;Fasting Blood Sugar: 126 mg/dL&#10;Total Cholesterol: 240 mg/dL"></textarea>
+        <button class="btn btn-p" style="width:100%;margin-top:10px" onclick="analyzeText()">🧠 Analyze with AI</button>
+        <div id="textResult" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ HEALTH TRACKER ════ -->
+<div class="page" id="pg-tracker">
+  <div class="topbar">
+    <div class="pg-title">📊 Health <span>Tracker</span></div>
+    <span style="font-size:12px;color:var(--muted)">All real data from your check-ins</span>
+  </div>
+  <div class="mg" style="margin-bottom:16px">
+    <div class="mc"><div class="mv" id="trScore">—</div><div class="mu">/ 100</div><div class="mn">Health Score</div></div>
+    <div class="mc"><div class="mv" id="trSteps">—</div><div class="mu">steps</div><div class="mn">Today's Steps</div></div>
+    <div class="mc"><div class="mv" id="trCal">—</div><div class="mu">kcal</div><div class="mn">Calories Burned</div></div>
+    <div class="mc"><div class="mv" id="trGoal">—</div><div class="mu">kcal/day</div><div class="mn">Calorie Goal (BMR)</div></div>
+    <div class="mc"><div class="mv" id="trBMI">—</div><div class="mu" id="trBMILbl">kg/m²</div><div class="mn">BMI</div></div>
+    <div class="mc"><div class="mv" id="trHR">—</div><div class="mu">bpm</div><div class="mn">Heart Rate</div></div>
+    <div class="mc"><div class="mv" id="trSleep">—</div><div class="mu">hours</div><div class="mn">Last Sleep</div></div>
+    <div class="mc"><div class="mv" id="trWater">—</div><div class="mu">glasses</div><div class="mn">Water Today</div></div>
+    <div class="mc"><div class="mv" id="trWeight">—</div><div class="mu">kg</div><div class="mn">Body Weight</div></div>
+    <div class="mc"><div class="mv" id="trBlood" style="font-size:18px">—</div><div class="mu"></div><div class="mn">Blood Group</div></div>
+    <div class="mc"><div class="mv" id="trStreak">—</div><div class="mu">days</div><div class="mn">Check-in Streak</div></div>
+    <div class="mc"><div class="mv" id="trTotal">—</div><div class="mu">total</div><div class="mn">Total Check-ins</div></div>
+  </div>
+  <div style="background:var(--pdim);border:1px solid var(--glow);border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;font-size:12.5px">
+    💡 <b>Heart Rate</b> is logged in check-in Step 5. <b>BMI &amp; Calorie Goal</b> are calculated from your <a href="#" onclick="goPage('profile')" style="color:var(--primary)">Profile</a> (age, weight, height). Steps auto-estimate calories if not entered manually.
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="ch"><div class="ct" id="trChartTitle">📉 Health Score Trend</div></div>
+    <div class="cb">
+      <div class="no-data" id="emTr"><div style="font-size:30px;margin-bottom:8px">📊</div><div style="font-size:13px;color:var(--muted)">Complete daily check-ins to build your trend</div></div>
+      <canvas id="trChart" style="max-height:200px;display:none"></canvas>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct" id="stepsChartTitle">🏃 Steps Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emSt"><div style="font-size:24px">🏃</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log steps in check-in</div></div>
+        <canvas id="stChart" style="max-height:160px;display:none"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct" id="calChartTitle">🔥 Calories Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emCal"><div style="font-size:24px">🔥</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log calories in check-in</div></div>
+        <canvas id="calTrChart" style="max-height:160px;display:none"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct" id="sleepChartTitle">💤 Sleep Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emSlp"><div style="font-size:24px">💤</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log sleep in check-in</div></div>
+        <canvas id="slpChart" style="max-height:160px;display:none"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct" id="waterChartTitle">💧 Water Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emWat"><div style="font-size:24px">💧</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log water in check-in</div></div>
+        <canvas id="watChart" style="max-height:160px;display:none"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ PROFILE ════ -->
+<div class="page" id="pg-profile">
+  <div class="topbar"><div class="pg-title">👤 My <span>Profile</span></div></div>
+  <div class="g2" style="align-items:start">
+    <!-- Photo card -->
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="cb" style="text-align:center">
+          <div style="width:100px;height:100px;border-radius:50%;margin:0 auto 14px;border:3px solid var(--primary);overflow:hidden;background:var(--surface);cursor:pointer;position:relative" onclick="document.getElementById('pfImgInput').click()">
+            <img id="pfImgPreview" style="width:100%;height:100%;object-fit:cover;display:none"/>
+            <div id="pfImgPlaceholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px">👤</div>
+            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.65);font-size:10px;padding:4px;color:var(--primary);text-align:center">📷 Change</div>
+          </div>
+          <input type="file" id="pfImgInput" accept="image/*" style="display:none" onchange="previewImg(this)"/>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:17px" id="pfDisplayName">—</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px" id="pfDisplayEmail">—</div>
+          <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+            <div id="pfBMIBadge" style="background:var(--pdim);border:1px solid var(--glow);border-radius:20px;padding:6px 14px;font-size:12.5px;display:none"></div>
+            <div id="pfCalBadge" style="background:rgba(123,111,255,0.12);border:1px solid rgba(123,111,255,0.3);border-radius:20px;padding:6px 14px;font-size:12.5px;display:none"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <div class="card">
+      <div class="ch"><div class="ct">Personal Details</div></div>
+      <div class="cb">
+        <div style="background:var(--pdim);border:1px solid var(--glow);border-radius:var(--rs);padding:10px 14px;margin-bottom:16px;font-size:12.5px">
+          💡 Fill age, weight, height for accurate <b>BMI</b>, <b>Calorie Goal</b>, and better AI advice.
+        </div>
+        <div class="pf-grid">
+          <div style="grid-column:1/-1">
+            <label class="pf-label">Full Name</label>
+            <input id="pfName" class="pf-input" placeholder="Your full name"/>
+          </div>
+          <div>
+            <label class="pf-label">Age</label>
+            <input id="pfAge" type="number" class="pf-input" placeholder="25"/>
+          </div>
+          <div>
+            <label class="pf-label">Gender</label>
+            <select id="pfGender" class="pf-input" style="background:var(--surface)">
+              <option value="male">Male</option><option value="female">Female</option>
+            </select>
+          </div>
+          <div>
+            <label class="pf-label">Weight (kg)</label>
+            <input id="pfWeight" type="number" step="0.1" class="pf-input" placeholder="70"/>
+          </div>
+          <div>
+            <label class="pf-label">Height (cm)</label>
+            <input id="pfHeight" type="number" class="pf-input" placeholder="175"/>
+          </div>
+          <div>
+            <label class="pf-label">Blood Group</label>
+            <select id="pfBlood" class="pf-input" style="background:var(--surface)">
+              <option value="">Select</option>
+              <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+              <option>O+</option><option>O-</option><option>AB+</option><option>AB-</option>
+            </select>
+          </div>
+          <div>
+            <label class="pf-label">Phone</label>
+            <input id="pfPhone" class="pf-input" placeholder="+91 9876543210"/>
+          </div>
+          <div>
+            <label class="pf-label">Activity Level</label>
+            <select id="pfActivity" class="pf-input" style="background:var(--surface)">
+              <option value="sedentary">Sedentary — desk job, no exercise</option>
+              <option value="light">Light — occasional walks</option>
+              <option value="moderate" selected>Moderate — exercise 3x/week</option>
+              <option value="active">Active — exercise 5x/week</option>
+              <option value="very_active">Very Active — daily hard exercise</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-p" style="width:100%;margin-top:18px;padding:13px" onclick="saveProfile()">💾 Save Profile</button>
+        <div id="pfMsg" style="margin-top:10px;font-size:13px;text-align:center;min-height:20px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- CHATBASE FLOAT -->
+<button class="cb-btn" onclick="toggleCB()" title="Ask about VitaAI">💬</button>
+<div class="cb-popup" id="cbPopup">
+  <div class="cb-head">
+    <div><div class="cb-title">💬 VitaAI Assistant</div><div style="font-size:11px;color:var(--muted)">Ask about this platform</div></div>
+    <button class="cb-x" onclick="toggleCB()">✕</button>
+  </div>
+  <iframe class="cb-iframe" id="cbFrame" src="about:blank" title="VitaAI Bot" style="display:none"></iframe>
+  <div class="cb-ph" id="cbPh">
+    <div style="font-size:36px">🤖</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:600;font-size:14px">Website Assistant</div>
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.5">Add CHATBASE_BOT_ID in .env to activate.</div>
+  </div>
+</div>
+
+<script>
+// ═══ AUTH GUARD ═══
+const token = localStorage.getItem('token');
+if (!token) { location.replace('login.html'); throw 0; }
+try {
+  const p = JSON.parse(atob(token.split('.')[1]));
+  if (p.exp && p.exp * 1000 < Date.now()) { localStorage.removeItem('token'); location.replace('login.html'); throw 0; }
+} catch(e) { if (e === 0) throw 0; localStorage.removeItem('token'); location.replace('login.html'); throw 0; }
+
+// ═══ GLOBALS ═══
+let uName = 'User', chatHist = [], ciStep = 0, ciAns = {};
+let _wk, _mood, _sleep, _steps, _cal, _tr, _stTr, _calTr, _slpTr, _watTr;
+
+// ═══ INIT ═══
+(function(){
+  try {
+    const p = JSON.parse(atob(token.split('.')[1]));
+    uName = p.name || 'User';
+    const first = uName.split(' ')[0];
+    txt('userName', first); txt('sidebarName', uName); txt('userAvLetter', uName[0].toUpperCase());
+    txt('pfDisplayEmail', p.email || '');
+    const h = new Date().getHours();
+    const g = h < 12 ? 'Good Morning ☀️' : h < 18 ? 'Good Afternoon 🌤️' : 'Good Evening 🌙';
+    document.getElementById('greetTitle').innerHTML = `${g}, <span>${first}</span>`;
+  } catch(e) {}
+  txt('todayDate', new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
+  txt('reportDate', new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
+  // Show welcome only first time
+  const welcomed = localStorage.getItem('vitaai_welcomed');
+  if (!welcomed) { /* will be shown after loadDash if no data */ }
+  loadDash();
+  loadProfile();
+})();
+
+function dismissWelcome() { localStorage.setItem('vitaai_welcomed','1'); }
+
+// ═══ NAVIGATION ═══
+function goPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  document.getElementById('pg-' + name)?.classList.add('active');
+  document.querySelectorAll('.ni').forEach(n => { if (n.getAttribute('onclick')?.includes("'" + name + "'")) n.classList.add('active'); });
+  if (name === 'mood') startCam(); else stopCam();
+  if (name === 'checkin') renderCI();
+  if (name === 'tracker') loadTracker();
+  if (name === 'dashboard') loadDash();
+}
+function logout() { localStorage.removeItem('token'); location.href = 'login.html'; }
+
+// ═══ LOAD DASHBOARD ═══
+async function loadDash() {
+  try {
+    const d = await api('/dashboard/stats');
+    renderDash(d);
+  } catch(e) { renderDash({ hasData: false, score: 0, totalCheckins: 0, today: null, charts: null }); }
+}
+
+function renderDash(d) {
+  const has = d.hasData && d.totalCheckins > 0;
+  // Welcome banner: show only if no data AND not dismissed
+  const welcomed = localStorage.getItem('vitaai_welcomed');
+  vis('wbNew', !has && !welcomed, 'flex');
+  vis('wbScore', has, 'flex');
+  vis('histCard', has, 'block');
+  vis('actCharts', has, 'grid');
+
+  if (has) {
+    txt('scoreNum', d.score);
+    const lbl = d.score >= 80 ? '/ 100 · Excellent 🌟' : d.score >= 60 ? '/ 100 · Good 👍' : d.score >= 40 ? '/ 100 · Fair ⚡' : '/ 100 · Keep Going 💪';
+    txt('scoreLabel', lbl);
+    txt('scoreSubtitle', `Avg of last ${Math.min(d.totalCheckins, 7)} check-ins · ${d.totalCheckins} total`);
+    txt('avgTag', `Score: ${d.score}/100`);
+    if (d.streak > 0) { txt('streakNum', d.streak); vis('streakBadge', true, 'block'); }
+  }
+
+  const t = d.today;
+  if (t) {
+    const w = t.water || 0;
+    txt('stWater', w > 0 ? w + ' glasses' : '—');
+    setSub('stWaterSub', w > 0 ? (w >= 8 ? '✅ Daily goal reached!' : `↑ ${8 - w} more to 8-glass goal`) : 'Log in check-in', w >= 6);
+
+    const st = t.steps || 0;
+    txt('stSteps', st > 0 ? st.toLocaleString() : '—');
+    setSub('stStepsSub', st > 0 ? (st >= 10000 ? '✅ 10k goal reached!' : st >= 5000 ? '↑ Good progress!' : '↓ Goal: 10,000 steps') : 'Log in check-in', st >= 5000);
+
+    const cal = t.calories || 0;
+    txt('stCal', cal > 0 ? cal.toLocaleString() + ' kcal' : '—');
+    setSub('stCalSub', cal > 0 ? `Goal: ${(d.calorieGoal || 2000).toLocaleString()} kcal/day` : 'Log in check-in', cal > 0);
+
+    const sh = t.sleep_hours > 0 ? t.sleep_hours + 'h' : (t.sleep || '—');
+    txt('stSleep', sh);
+    const gs = t.sleep_hours >= 7 || t.sleep?.includes('7-8') || t.sleep?.includes('8+');
+    setSub('stSleepSub', gs ? '↑ Good sleep!' : t.sleep ? '↓ Try sleeping more' : 'Log in check-in', gs);
+  } else {
+    ['stWater','stSteps','stCal','stSleep'].forEach(id => txt(id, '—'));
+    ['stWaterSub','stStepsSub','stCalSub','stSleepSub'].forEach(id => {
+      txt(id, 'Complete check-in to track');
+      const el = document.getElementById(id);
+      if (el) { el.className = 'sc-sub'; el.style.color = 'var(--muted)'; }
+    });
+  }
+
+  // Charts — show based on how many checkins (7 days or 30 days)
+  if (has && d.charts) {
+    const c = d.charts;
+    const days = d.chartDays || 7;
+    const periodLabel = days >= 30 ? 'Last 30 Days' : `Last ${c.days.length} Days`;
+
+    if (c.scoreData.some(v => v > 0)) {
+      hide('emWeek');
+      _wk = mkLine('weekChart', _wk, c.days, c.scoreData, '#3dffc0', 'rgba(61,255,192,0.06)');
+    }
+    if (c.moodData.some(v => v !== null)) {
+      hide('emMood');
+      document.getElementById('moodLegend').style.display = 'flex';
+      _mood = mkBarMood('moodChart', _mood, c.days, c.moodData);
+    }
+    if (c.sleepData.some(v => v !== null && v > 0)) {
+      hide('emSleep');
+      _sleep = mkLine('sleepChart', _sleep, c.days, c.sleepData, '#7b6fff', 'rgba(123,111,255,0.06)', 0, 12);
+    }
+    if (c.stepsData.some(v => v > 0)) mkBar('stepsChart', _steps, c.days, c.stepsData, 'rgba(123,111,255,0.7)');
+    if (c.calData.some(v => v > 0)) mkBar('calChart', _cal, c.days, c.calData, 'rgba(255,107,157,0.7)');
+    loadHist();
+  }
+}
+
+// ═══ TRACKER ═══
+async function loadTracker() {
+  try {
+    const d = await api('/dashboard/stats');
+    const days = d.chartDays || 7;
+    const periodLabel = days >= 30 ? 'Last 30 Days' : `Last ${days} Days`;
+    txt('trChartTitle', `📉 Health Score — ${periodLabel}`);
+    txt('stepsChartTitle', `🏃 Steps — ${periodLabel}`);
+    txt('calChartTitle', `🔥 Calories — ${periodLabel}`);
+    txt('sleepChartTitle', `💤 Sleep — ${periodLabel}`);
+    txt('waterChartTitle', `💧 Water — ${periodLabel}`);
+
+    if (d.hasData) { document.getElementById('trScore').textContent = d.score; document.getElementById('trScore').style.color = d.score >= 80 ? 'var(--primary)' : d.score >= 60 ? 'var(--gold)' : 'var(--accent)'; }
+    if (d.calorieGoal) { txt('trGoal', d.calorieGoal.toLocaleString()); document.getElementById('trGoal').style.color = 'var(--primary)'; }
+    if (d.bmi) { txt('trBMI', d.bmi); txt('trBMILbl', d.bmiLabel || 'kg/m²'); document.getElementById('trBMI').style.color = d.bmiLabel?.includes('Normal') ? 'var(--primary)' : 'var(--gold)'; }
+    if (d.profile?.blood_group) txt('trBlood', d.profile.blood_group);
+    if (d.streak > 0) txt('trStreak', d.streak);
+    if (d.totalCheckins > 0) txt('trTotal', d.totalCheckins);
+
+    const t = d.today;
+    if (t) {
+      if (t.steps > 0) { txt('trSteps', t.steps.toLocaleString()); document.getElementById('trSteps').style.color = 'var(--secondary)'; }
+      if (t.calories > 0) { txt('trCal', t.calories.toLocaleString()); document.getElementById('trCal').style.color = 'var(--accent)'; }
+      if (t.water > 0) txt('trWater', t.water);
+      if (t.sleep_hours > 0) txt('trSleep', t.sleep_hours + 'h');
+      if (t.heart_rate > 0) { txt('trHR', t.heart_rate); document.getElementById('trHR').style.color = 'var(--accent)'; }
+      if (t.body_weight > 0) txt('trWeight', t.body_weight + ' kg');
+    }
+
+    if (d.charts?.scoreData?.some(v => v > 0)) {
+      hide('emTr'); document.getElementById('trChart').style.display = 'block';
+      _tr = mkChartInst('trChart', _tr, 'line', d.charts.days, [{ data: d.charts.scoreData, borderColor: '#3dffc0', backgroundColor: 'rgba(61,255,192,0.06)', tension: .4, fill: true, pointRadius: 3, spanGaps: true }]);
+    }
+    if (d.charts?.stepsData?.some(v => v > 0)) { hide('emSt'); document.getElementById('stChart').style.display = 'block'; _stTr = mkChartInst('stChart', _stTr, 'bar', d.charts.days, [{ data: d.charts.stepsData, backgroundColor: 'rgba(123,111,255,0.6)', borderRadius: 3 }]); }
+    if (d.charts?.calData?.some(v => v > 0)) { hide('emCal'); document.getElementById('calTrChart').style.display = 'block'; _calTr = mkChartInst('calTrChart', _calTr, 'bar', d.charts.days, [{ data: d.charts.calData, backgroundColor: 'rgba(255,107,157,0.6)', borderRadius: 3 }]); }
+    if (d.charts?.sleepData?.some(v => v > 0)) { hide('emSlp'); document.getElementById('slpChart').style.display = 'block'; _slpTr = mkChartInst('slpChart', _slpTr, 'line', d.charts.days, [{ data: d.charts.sleepData, borderColor: '#7b6fff', backgroundColor: 'rgba(123,111,255,0.06)', tension: .4, fill: true, pointRadius: 2, spanGaps: true }]); }
+    if (d.charts?.waterData?.some(v => v > 0)) { hide('emWat'); document.getElementById('watChart').style.display = 'block'; _watTr = mkChartInst('watChart', _watTr, 'bar', d.charts.days, [{ data: d.charts.waterData, backgroundColor: 'rgba(61,255,192,0.5)', borderRadius: 3 }]); }
+  } catch(e) {}
+}
+
+// ═══ HISTORY TABLE ═══
+async function loadHist() {
+  try {
+    const d = await api('/checkins');
+    const rows = (d.checkins || []).slice(0, 7);
+    if (!rows.length) return;
+    txt('histCount', `Last ${rows.length} entries`);
+    document.getElementById('histBody').innerHTML =
+      `<div style="display:grid;grid-template-columns:80px 1fr 1fr 1fr 65px 65px 55px;gap:6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px"><span>Date</span><span>Sleep</span><span>Energy</span><span>Mood</span><span>Steps</span><span>Cal</span><span>Score</span></div>` +
+      rows.map(c => `<div style="display:grid;grid-template-columns:80px 1fr 1fr 1fr 65px 65px 55px;gap:6px;font-size:12.5px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.03)"><span style="color:var(--muted)">${new Date(c.created_at).toLocaleDateString('en-IN',{month:'short',day:'numeric'})}</span><span>${c.sleep_hours>0?c.sleep_hours+'h':(c.sleep_quality||'—')}</span><span>${c.energy_level||'—'}</span><span>${c.mood||'—'}</span><span>${c.steps>0?c.steps.toLocaleString():'—'}</span><span>${c.calories_burned>0?c.calories_burned:'—'}</span><span style="color:${(c.health_score||0)>=70?'var(--primary)':(c.health_score||0)>=50?'var(--gold)':'var(--accent)'};font-weight:600">${c.health_score||0}</span></div>`).join('');
+  } catch(e) {}
+}
+
+// ═══ DAILY HEALTH REPORT ═══
+async function loadDailyReport() {
+  document.getElementById('dailyReportBody').innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px">🧠 Generating your personalized daily health report…<br/><span style="font-size:12px">This may take a few seconds</span></div>`;
+  try {
+    const d = await api('/ai/daily-report');
+    const report = d.report || d.error || 'Could not generate report.';
+    document.getElementById('dailyReportBody').innerHTML = `
+      <div style="font-size:14px;line-height:1.8;white-space:pre-wrap">${report.replace(/\n/g, '<br/>')}</div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-g" onclick="quickAsk('Based on my health report, what specific exercises should I do today?')">💪 Exercise Plan</button>
+        <button class="btn btn-g" onclick="quickAsk('What foods should I eat today based on my health data?')">🥗 Food Plan</button>
+        <button class="btn btn-p" onclick="goPage('checkin')">✅ Today\'s Check-in</button>
+      </div>`;
+  } catch(e) {
+    document.getElementById('dailyReportBody').innerHTML = `<div style="color:var(--accent);padding:16px">⚠️ Could not generate report. Check GROQ_API_KEY in .env. Do at least one check-in first.</div>`;
+  }
+}
+
+// ═══ CHECK-IN — 6 STEPS (vitals step removed) ═══
+const ciSteps = [
+  { id:'sq', type:'opts', q:'How did you sleep last night?',
+    opts:['😴 Less than 5h','😐 5–6 hours','😊 7–8 hours','🌟 8+ hours'],
+    hint:'Sleep quality is the biggest factor in your health score.' },
+  { id:'el', type:'opts', q:'How is your energy level right now?',
+    opts:['🪫 Very Low','😐 Low','⚡ Medium','🔥 High'] },
+  { id:'mood', type:'opts', q:'How are you feeling emotionally?',
+    opts:['😔 Sad/Anxious','😐 Neutral','😊 Good','🌟 Great!'] },
+  { id:'activity', type:'fields', q:'🏃 Steps & Activity Today',
+    fields:[
+      { id:'steps', label:'Steps walked today', type:'number', ph:'e.g. 8500', hint:'Check Samsung Health, Google Fit, or iPhone Health app' },
+      { id:'cal', label:'Calories burned (kcal)', type:'number', ph:'e.g. 380', hint:'From fitness tracker — or leave blank, we estimate from steps automatically' },
+      { id:'exMins', label:'Exercise duration (minutes)', type:'number', ph:'e.g. 30' },
+      { id:'exType', label:'Exercise type (optional)', type:'text', ph:'e.g. walking, gym, yoga, cycling' }
+    ]
+  },
+  { id:'hydration', type:'fields', q:'💧 Hydration & Body',
+    fields:[
+      { id:'water', label:'Water intake (glasses)', type:'number', ph:'e.g. 6', hint:'1 glass = 250ml · Daily goal: 8 glasses' },
+      { id:'sleepHrs', label:'Exact sleep hours', type:'number', step:'0.5', ph:'e.g. 7.5', hint:'For accurate health score calculation' },
+      { id:'bweight', label:'Body weight today (kg, optional)', type:'number', step:'0.1', ph:'e.g. 68.5' },
+      { id:'hr', label:'Heart Rate (bpm, optional)', type:'number', ph:'e.g. 72', hint:'From smartwatch or pulse check' }
+    ]
+  },
+  { id:'notes', type:'textarea', q:'📝 Notes for today (optional)', ph:'e.g. Felt headache in morning, skipped lunch, stressed about work...' }
+];
+
+function renderCI() {
+  if (ciStep >= ciSteps.length) { showCIDone(); return; }
+  for (let i = 0; i < 6; i++) document.getElementById('d' + i).className = 'pd ' + (i < ciStep ? 'done' : i === ciStep ? 'cur' : '');
+  const s = ciSteps[ciStep];
+  let html = `<div style="margin-bottom:14px"><div class="ci-q" style="margin-bottom:4px">Step ${ciStep+1}/6: ${s.q}</div>${s.hint ? `<div style="font-size:12px;color:rgba(61,255,192,0.7);margin-top:3px">${s.hint}</div>` : ''}</div>`;
+  if (s.type === 'opts') {
+    html += `<div class="ci-opts">${s.opts.map(o => `<div class="ci-opt" onclick="pickCI('${o.replace(/'/g,"\\'")}',this)">${o}</div>`).join('')}</div>`;
+  } else if (s.type === 'fields') {
+    html += s.fields.map(f => `<div style="margin-bottom:12px"><label class="fi-label">${f.label}</label>${f.hint ? `<div class="fi-hint">${f.hint}</div>` : ''}<input type="${f.type}" id="ci_${f.id}" class="fi" placeholder="${f.ph}" ${f.step ? 'step=' + f.step : ''} oninput="ciAns['${f.id}']=this.value"/></div>`).join('');
+  } else if (s.type === 'textarea') {
+    html += `<textarea id="ci_notes" class="fi" style="min-height:80px;resize:vertical" placeholder="${s.ph}" oninput="ciAns.notes=this.value"></textarea>`;
+  }
+  html += `<div style="display:flex;gap:10px;margin-top:18px">${ciStep > 0 ? `<button class="btn btn-g" style="flex:1" onclick="ciStep--;renderCI()">← Back</button>` : ''}<button class="btn btn-p" style="flex:2" onclick="nextCI()" id="ciNext" ${s.type === 'opts' ? 'disabled' : ''}>${ciStep < ciSteps.length - 1 ? 'Next →' : '✅ Save Check-in'}</button></div>`;
+  document.getElementById('ciContent').innerHTML = html;
+  if (s.type === 'fields') s.fields.forEach(f => { const el = document.getElementById('ci_' + f.id); if (el && ciAns[f.id]) el.value = ciAns[f.id]; });
+  if (s.type === 'textarea') { const el = document.getElementById('ci_notes'); if (el && ciAns.notes) el.value = ciAns.notes; }
+}
+function pickCI(v, el) { document.querySelectorAll('.ci-opt').forEach(o => o.classList.remove('sel')); el.classList.add('sel'); ciAns[ciSteps[ciStep].id] = v; document.getElementById('ciNext').disabled = false; }
+function nextCI() { ciStep++; ciStep >= ciSteps.length ? showCIDone() : renderCI(); }
+
+function showCIDone() {
+  for (let i = 0; i < 6; i++) document.getElementById('d' + i).className = 'pd done';
+  const sleepMap = { 'Less than 5h': 4, '5–6 hours': 5.5, '7–8 hours': 7.5, '8+ hours': 8.5 };
+  const sqKey = Object.keys(sleepMap).find(k => (ciAns.sq || '').includes(k));
+  const sleepHrs = ciAns.sleepHrs ? parseFloat(ciAns.sleepHrs) : (sqKey ? sleepMap[sqKey] : 0);
+  const payload = {
+    sleep_quality: ciAns.sq || '', sleep_hours: sleepHrs,
+    energy_level: ciAns.el || '', mood: ciAns.mood || '',
+    water_intake: parseInt(ciAns.water) || 0,
+    steps: parseInt(ciAns.steps) || 0, calories_burned: parseInt(ciAns.cal) || 0,
+    exercise_done: (parseInt(ciAns.exMins) || 0) > 0 ? 1 : 0,
+    exercise_minutes: parseInt(ciAns.exMins) || 0, exercise_type: ciAns.exType || '',
+    body_weight: parseFloat(ciAns.bweight) || 0,
+    heart_rate: parseInt(ciAns.hr) || 0,
+    notes: ciAns.notes || ''
+  };
+  document.getElementById('ciContent').innerHTML = `<div style="text-align:center;padding:20px"><div style="font-size:44px;margin-bottom:10px">⏳</div><div style="font-size:15px;color:var(--muted)">Saving check-in…</div></div>`;
+  fetch('/checkin', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(payload) })
+    .then(r => r.json()).then(data => {
+      const sc = data.health_score || 0;
+      document.getElementById('ciContent').innerHTML = `<div style="text-align:center;padding:24px">
+        <div style="font-size:54px;margin-bottom:12px">🎉</div>
+        <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:10px">Check-in Saved!</div>
+        <div style="background:var(--pdim);border:1px solid var(--glow);border-radius:14px;padding:16px;margin-bottom:16px">
+          <div style="font-size:12px;color:var(--muted)">Your Health Score Today</div>
+          <div style="font-family:'Syne',sans-serif;font-size:42px;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent">${sc}</div>
+          <div style="font-size:12px;color:var(--muted)">/ 100 · ${sc >= 80 ? 'Excellent 🌟' : sc >= 60 ? 'Good 👍' : sc >= 40 ? 'Fair ⚡' : 'Keep Going 💪'}</div>
+          ${data.calories_auto > 0 && !parseInt(ciAns.cal) ? `<div style="font-size:11px;color:rgba(61,255,192,0.6);margin-top:6px">📊 Calories auto-estimated: ~${data.calories_auto} kcal from steps</div>` : ''}
+        </div>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Dashboard &amp; tracker updated with your real data!</p>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-g" style="flex:1" onclick="goPage('dashboard')">📊 Dashboard</button>
+          <button class="btn btn-p" style="flex:1" onclick="goPage('dailyreport');loadDailyReport()">📋 Daily Report</button>
+        </div>
+      </div>`;
+      loadDash(); dismissWelcome();
+      document.getElementById('checkinBadge').style.display = 'none';
+      ciStep = 0; ciAns = {};
+    }).catch(() => {
+      document.getElementById('ciContent').innerHTML = `<div style="color:var(--accent);text-align:center;padding:20px">⚠️ Save failed. Is the server running?<br/><button class="btn btn-g" style="margin-top:12px" onclick="ciStep=0;ciAns={};renderCI()">← Try Again</button></div>`;
+    });
+}
+
+// ═══ MOOD SCAN (uses Face_server.py emotion detection) ═══
+// These match actual DeepFace emotion labels
+const moodMap = {
+  happy:   { emoji:'😊', label:'Happy & Energized', desc:'Positive energy detected! Great time to be active.', q:'I am feeling happy and energized today. What health activities are best for me right now?' },
+  sad:     { emoji:'😔', label:'Feeling Sad', desc:'Low mood detected. Time for self-care.', q:'I am feeling sad today. What health advice do you have for me? What foods and activities help?' },
+  angry:   { emoji:'😤', label:'Stressed/Angry', desc:'Stress signals detected. Breathe and relax.', q:'I am feeling angry and stressed today. Give me health advice to calm down. What helps?' },
+  fear:    { emoji:'😰', label:'Anxious/Fearful', desc:'Anxiety detected. Grounding exercises help.', q:'I am feeling anxious and fearful. What health techniques help with anxiety?' },
+  surprise:{ emoji:'😲', label:'Surprised/Alert', desc:'High alertness detected.', q:'I am feeling surprised and alert today. What is a good health routine for me?' },
+  disgust: { emoji:'🤢', label:'Uncomfortable', desc:'Discomfort detected.', q:'I am feeling uncomfortable today. What health advice do you have for me?' },
+  neutral: { emoji:'😐', label:'Calm & Neutral', desc:'Balanced calm state.', q:'I am feeling neutral and calm today. What is a good health routine for me?' }
+};
+// Fallback detection based on face metrics (brightness/sharpness as proxy)
+function detectEmotionFromCanvas(canvas) {
+  const ctx = canvas.getContext('2d');
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  let r = 0, g = 0, b = 0, count = data.length / 4;
+  for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i+1]; b += data[i+2]; }
+  const avgBrightness = (r + g + b) / (3 * count);
+  // Use brightness as rough proxy for mood (bright=happy, dark=neutral/sad)
+  if (avgBrightness > 160) return 'happy';
+  if (avgBrightness > 120) return 'neutral';
+  return 'neutral';
+}
+
+let camStream = null;
+async function startCam() {
+  try { camStream = await navigator.mediaDevices.getUserMedia({ video: true }); document.getElementById('camFeed').srcObject = camStream; }
+  catch(e) { txt('mLabel', 'Camera not available'); }
+}
+function stopCam() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
+
+async function scanMood() {
+  const v = document.getElementById('camFeed'), c = document.getElementById('camCanvas');
+  c.width = v.videoWidth || 320; c.height = v.videoHeight || 240;
+  c.getContext('2d').drawImage(v, 0, 0);
+  txt('mLabel', 'Analyzing face expression…'); txt('mEmoji', '🔍');
+
+  // Try to get real emotion from Face_server.py if available
+  let emotion = 'neutral';
+  try {
+    const imgData = c.toDataURL('image/jpeg');
+    const email = JSON.parse(atob(token.split('.')[1])).email || 'scan@vitaai.com';
+    // Use face server's emotion endpoint if available
+    const r = await fetch('/face/emotion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ img: imgData, email })
+    });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.emotion) emotion = d.emotion.toLowerCase();
+    }
+  } catch(e) {
+    // Face server doesn't have /emotion endpoint — use brightness-based detection
+    emotion = detectEmotionFromCanvas(c);
+  }
+
+  await sleep(1000);
+  const m = moodMap[emotion] || moodMap.neutral;
+  txt('mEmoji', m.emoji); txt('mLabel', m.label); txt('mDesc', m.desc);
+  document.getElementById('moodAdvice').innerHTML = '<div style="color:var(--muted);font-style:italic;font-size:13px">🧠 Getting AI advice for your mood…</div>';
+  try {
+    const d = await api('/ai/chat', { messages: [{ role: 'user', content: m.q }] });
+    document.getElementById('moodAdvice').innerHTML = `
+      <div style="background:var(--pdim);border:1px solid var(--glow);border-radius:11px;padding:14px;font-size:13.5px;line-height:1.7">
+        <div style="font-family:'Syne',sans-serif;font-weight:600;margin-bottom:8px">${m.emoji} AI Health Advice for Your Mood</div>
+        ${(d.reply || 'Take care of yourself today!').replace(/\n/g, '<br/>')}
+      </div>
+      <div style="margin-top:10px;font-size:12.5px;color:var(--muted)">Want more? <a href="#" onclick="goPage('aichat');quickAsk('${m.q.replace(/'/g, "\\'")}');return false" style="color:var(--primary)">Ask SyamHealth AI →</a></div>`;
+  } catch(e) { document.getElementById('moodAdvice').innerHTML = '<div style="color:var(--muted);font-size:13px">AI unavailable. Check GROQ_API_KEY in .env</div>'; }
+}
+
+// ═══ AI CHAT ═══
+async function sendChat() {
+  const inp = document.getElementById('chatIn');
+  const msg = inp.value.trim(); if (!msg) return;
+  inp.value = ''; addMsg(msg, 'user'); addMsg('🤔 Thinking…', 'bot thinking');
+  chatHist.push({ role: 'user', content: msg });
+  try {
+    const d = await api('/ai/chat', { messages: chatHist.slice(-10) });
+    const reply = d.reply || d.error || 'Sorry, no response.';
+    chatHist.push({ role: 'assistant', content: reply });
+    document.getElementById('chatMsgs').querySelector('.thinking')?.remove();
+    addMsg(reply, 'bot');
+  } catch(e) {
+    document.getElementById('chatMsgs').querySelector('.thinking')?.remove();
+    addMsg('⚠️ AI unavailable. Check GROQ_API_KEY in .env', 'bot');
+  }
+}
+function addMsg(t, type) { const box = document.getElementById('chatMsgs'); const d = document.createElement('div'); d.className = 'msg ' + type; d.innerHTML = t.replace(/\n/g, '<br/>'); box.appendChild(d); box.scrollTop = box.scrollHeight; }
+function quickAsk(q) { goPage('aichat'); setTimeout(() => { document.getElementById('chatIn').value = q; sendChat(); }, 200); }
+
+// ═══ VOICE ═══
+let mRec = null, aChunks = [];
+async function startVoice() {
+  document.getElementById('vOrb').classList.add('listening');
+  txt('vStatus', '🔴 Listening… speak clearly');
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mRec = new MediaRecorder(s, { mimeType: 'audio/webm' }); aChunks = [];
+    mRec.ondataavailable = e => { if (e.data.size > 0) aChunks.push(e.data); };
+    mRec.start(100); // collect in 100ms chunks for better quality
+  } catch(e) { txt('vStatus', '❌ Microphone not available'); }
+}
+async function stopVoice() {
+  document.getElementById('vOrb').classList.remove('listening');
+  txt('vStatus', '⏳ Processing speech…');
+  if (!mRec) return;
+  mRec.stop();
+  mRec.onstop = async () => {
+    const blob = new Blob(aChunks, { type: 'audio/webm' });
+    if (blob.size < 500) { txt('vStatus', '⚠️ Too short. Hold longer and speak clearly.'); return; }
+    try {
+      const r = await fetch('/voice/chat', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'audio/webm' }, body: blob
+      });
+      if (!r.ok) { const e = await r.json(); txt('vStatus', '⚠️ ' + (e.error || 'Voice error')); return; }
+      const uT = decodeURIComponent(r.headers.get('X-User-Text') || '');
+      const aT = decodeURIComponent(r.headers.get('X-Agent-Text') || '');
+      const audioBlob = await r.blob();
+      new Audio(URL.createObjectURL(audioBlob)).play();
+      txt('vTrans', `You: ${uT}\nAI: ${aT}`);
+      txt('vStatus', '✅ Done — hold again to speak');
+      const h = document.getElementById('vHistory');
+      h.innerHTML += `<div style="padding:8px 11px;background:var(--surface);border-radius:9px;border-left:3px solid var(--primary)"><b>You:</b> ${uT}</div>`;
+      h.innerHTML += `<div style="padding:8px 11px;background:var(--pdim);border-radius:9px;border-left:3px solid var(--secondary)"><b>Coach:</b> ${aT}</div>`;
+      h.scrollTop = h.scrollHeight;
+    } catch(e) { txt('vStatus', '⚠️ Voice agent offline. Start voice_agent.py'); }
+  };
+}
+
+// ═══ REPORT ANALYZER (any health report, uses OCR from server) ═══
+async function analyzeReport(inp) {
+  const file = inp.files[0]; if (!file) return;
+  const res = document.getElementById('bResult');
+  res.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:14px;text-align:center">🔍 Reading report image with OCR…</div>';
+  const fd = new FormData(); fd.append('file', file); fd.append('language', 'eng'); fd.append('isOverlayRequired', 'false');
+  try {
+    // Use OCR key from server env
+    const ocrKey = 'K87164055488957';
+    const ocrRes = await fetch('https://api.ocr.space/parse/image', { method: 'POST', headers: { apikey: ocrKey }, body: fd });
+    const ocrData = await ocrRes.json();
+    const text = ocrData.ParsedResults?.[0]?.ParsedText || '';
+    if (!text.trim()) { res.innerHTML = '<div style="color:var(--accent);font-size:13px;padding:12px">⚠️ Could not read image. Use clearer photo or paste text.</div>'; return; }
+    await doAnalyze(text, res);
+  } catch(e) { res.innerHTML = '<div style="color:var(--accent);font-size:13px;padding:12px">⚠️ OCR failed. Paste the report text below instead.</div>'; }
+}
+async function analyzeText() {
+  const t = document.getElementById('reportText').value.trim();
+  const res = document.getElementById('textResult');
+  if (!t) { res.innerHTML = '<div style="color:var(--accent);font-size:13px">Please paste some report text first.</div>'; return; }
+  res.innerHTML = '<div style="color:var(--muted);font-size:13px">🧠 SyamHealth AI analyzing report…</div>';
+  await doAnalyze(t, res);
+}
+async function doAnalyze(text, container) {
+  try {
+    const d = await api('/ai/analyze-report', { reportText: text });
+    if (d.error) { container.innerHTML = `<div style="color:var(--accent);font-size:13px;padding:12px">⚠️ ${d.error}</div>`; return; }
+    const items = d.items || [];
+    if (!items.length) { container.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">No values found. Try pasting more report text.</div>'; return; }
+    const abnormal = items.filter(i => i.status !== 'normal');
+    container.innerHTML =
+      `<div style="font-family:'Syne',sans-serif;font-weight:600;margin-bottom:8px;margin-top:14px">📋 Report Analysis — ${items.length} values found${abnormal.length > 0 ? ` · <span style="color:var(--accent)">${abnormal.length} need attention</span>` : ' · All normal ✅'}</div>` +
+      items.map(i => `<div class="ri">
+        <div><div style="font-weight:500">${i.name}</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${i.advice || ''}</div>
+        <div style="font-size:10.5px;color:var(--muted)">Normal: ${i.range || '—'}</div></div>
+        <div style="display:flex;align-items:center;gap:11px;flex-shrink:0">
+          <span style="font-family:'Syne',sans-serif;font-weight:600">${i.value} ${i.unit || ''}</span>
+          <span class="rs r${(i.status || 'n')[0]}">${(i.status || 'normal').toUpperCase()}</span>
+        </div>
+      </div>`).join('') +
+      `<div style="margin-top:14px;padding:12px 14px;background:var(--pdim);border-radius:var(--rs);border:1px solid var(--glow);font-size:13px">
+        💡 <b>Want a complete health plan based on this report?</b>
+        <button class="btn btn-g" style="margin-left:10px;padding:6px 14px;font-size:12px" onclick="askAboutReport('${items.map(i=>i.name+': '+i.value+' '+i.unit+' ('+i.status+')').join(', ').replace(/'/g,'').slice(0,200)}')">Ask AI for Full Plan →</button>
+      </div>`;
+  } catch(e) { container.innerHTML = '<div style="color:var(--accent);font-size:13px;padding:12px">⚠️ Analysis failed. Check GROQ_API_KEY in .env</div>'; }
+}
+function askAboutReport(summary) {
+  quickAsk(`My health report shows: ${summary}. Based on this, what should I eat, what exercises should I do, what lifestyle changes do I need, and what to avoid?`);
+}
+
+// ═══ PROFILE ═══
+function previewImg(inp) {
+  const file = inp.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('pfImgPreview').src = e.target.result;
+    document.getElementById('pfImgPreview').style.display = 'block';
+    document.getElementById('pfImgPlaceholder').style.display = 'none';
+    document.getElementById('userAvImg').src = e.target.result;
+    document.getElementById('userAvImg').style.display = 'block';
+    document.getElementById('userAvLetter').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function loadProfile() {
+  try {
+    const d = await api('/profile');
+    const u = d.user; if (!u) return;
+    if (u.name) { document.getElementById('pfName').value = u.name; txt('pfDisplayName', u.name); }
+    if (u.age) document.getElementById('pfAge').value = u.age;
+    if (u.weight) document.getElementById('pfWeight').value = u.weight;
+    if (u.height) document.getElementById('pfHeight').value = u.height;
+    if (u.blood_group) document.getElementById('pfBlood').value = u.blood_group;
+    if (u.gender) document.getElementById('pfGender').value = u.gender;
+    if (u.activity_level) document.getElementById('pfActivity').value = u.activity_level;
+    if (u.phone) document.getElementById('pfPhone').value = u.phone;
+    if (u.img) {
+      document.getElementById('pfImgPreview').src = '/uploads/' + u.img;
+      document.getElementById('pfImgPreview').style.display = 'block';
+      document.getElementById('pfImgPlaceholder').style.display = 'none';
+      document.getElementById('userAvImg').src = '/uploads/' + u.img;
+      document.getElementById('userAvImg').style.display = 'block';
+      document.getElementById('userAvLetter').style.display = 'none';
+    }
+    updateProfileBadges(u);
+  } catch(e) {}
+}
+
+function updateProfileBadges(u) {
+  if (u.weight && u.height) {
+    const h = u.height / 100; const bmi = (u.weight / (h * h)).toFixed(1);
+    const b = parseFloat(bmi);
+    const lbl = b < 18.5 ? 'Underweight' : b < 25 ? 'Normal ✅' : b < 30 ? 'Overweight' : 'Obese';
+    document.getElementById('pfBMIBadge').textContent = `BMI: ${bmi} (${lbl})`;
+    document.getElementById('pfBMIBadge').style.display = 'block';
+  }
+  if (u.weight && u.height && u.age) {
+    const bmr = u.gender === 'female'
+      ? 447.593 + (9.247 * u.weight) + (3.098 * u.height) - (4.330 * u.age)
+      : 88.362 + (13.397 * u.weight) + (4.799 * u.height) - (5.677 * u.age);
+    const m = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 };
+    const goal = Math.round(bmr * (m[u.activity_level] || 1.55));
+    document.getElementById('pfCalBadge').textContent = `Calorie Goal: ${goal.toLocaleString()} kcal/day`;
+    document.getElementById('pfCalBadge').style.display = 'block';
+  }
+}
+
+async function saveProfile() {
+  const msgEl = document.getElementById('pfMsg');
+  msgEl.innerHTML = '<span style="color:var(--muted)">Saving…</span>';
+  const email = (() => { try { return JSON.parse(atob(token.split('.')[1])).email || ''; } catch(e) { return ''; } })();
+  const fd = new FormData();
+  fd.append('name', document.getElementById('pfName').value);
+  fd.append('email', email);
+  fd.append('age', document.getElementById('pfAge').value);
+  fd.append('weight', document.getElementById('pfWeight').value);
+  fd.append('height', document.getElementById('pfHeight').value);
+  fd.append('blood_group', document.getElementById('pfBlood').value);
+  fd.append('gender', document.getElementById('pfGender').value);
+  fd.append('activity_level', document.getElementById('pfActivity').value);
+  fd.append('phone', document.getElementById('pfPhone').value);
+  const imgInp = document.getElementById('pfImgInput');
+  if (imgInp.files[0]) fd.append('img', imgInp.files[0]);
+
+  try {
+    const r = await fetch('/profile', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd });
+    const d = await r.json();
+    if (d.message) {
+      msgEl.innerHTML = `<span style="color:var(--primary)">✅ ${d.message} — BMI & calorie goal updated!</span>`;
+      txt('pfDisplayName', document.getElementById('pfName').value);
+      txt('sidebarName', document.getElementById('pfName').value);
+      // Refresh badges
+      const u = { name: document.getElementById('pfName').value, age: parseInt(document.getElementById('pfAge').value), weight: parseFloat(document.getElementById('pfWeight').value), height: parseFloat(document.getElementById('pfHeight').value), gender: document.getElementById('pfGender').value, activity_level: document.getElementById('pfActivity').value };
+      updateProfileBadges(u);
+      loadDash(); // refresh dashboard with new calorie goal
+    } else {
+      msgEl.innerHTML = `<span style="color:var(--accent)">⚠️ ${d.message || 'Error saving'}</span>`;
+    }
+    setTimeout(() => msgEl.innerHTML = '', 4000);
+  } catch(e) { msgEl.innerHTML = '<span style="color:var(--accent)">⚠️ Save failed. Is the server running?</span>'; }
+}
+
+// ═══ CHATBASE ═══
+async function toggleCB() {
+  const popup = document.getElementById('cbPopup'); popup.classList.toggle('open');
+  if (popup.classList.contains('open')) {
+    try {
+      const d = await api('/config/chatbase');
+      if (d.botId && d.botId !== 'your_chatbase_bot_id_here') {
+        document.getElementById('cbFrame').src = `https://www.chatbase.co/chatbot-iframe/${d.botId}`;
+        document.getElementById('cbFrame').style.display = 'block';
+        document.getElementById('cbPh').style.display = 'none';
+      }
+    } catch(e) {}
+  }
+}
+
+// ═══ CHART HELPERS ═══
+const co = () => ({ x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#ffffff44', font: { size: 10 } } }, y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#ffffff44', font: { size: 10 } } } });
+function mkLine(id, inst, labels, data, color, bg, yMin, yMax) {
+  document.getElementById(id).style.display = 'block'; if (inst) inst.destroy();
+  const opts = { plugins: { legend: { display: false } }, scales: co(), responsive: true };
+  if (yMin !== undefined) opts.scales.y.min = yMin; if (yMax !== undefined) opts.scales.y.max = yMax;
+  return new Chart(document.getElementById(id).getContext('2d'), { type: 'line', data: { labels, datasets: [{ data, borderColor: color, backgroundColor: bg, tension: .4, fill: true, pointBackgroundColor: color, pointRadius: 4, spanGaps: true }] }, options: opts });
+}
+function mkBarMood(id, inst, labels, data) {
+  document.getElementById(id).style.display = 'block'; if (inst) inst.destroy();
+  // Color bars: green=great, purple=neutral, red=low
+  const colors = data.map(v => v === null ? 'transparent' : v >= 4 ? '#3dffc0' : v === 3 ? '#7b6fff' : '#ff6b9d');
+  return new Chart(document.getElementById(id).getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 5 }] },
+    options: { plugins: { legend: { display: false } }, scales: { ...co(), y: { ...co().y, min: 0, max: 5, ticks: { callback: v => ['','😔','😐','😐','😊','🌟'][v] || '', color: '#ffffff66', font:{size:14} } } }, responsive: true }
+  });
+}
+function mkBar(id, inst, labels, data, color) {
+  document.getElementById(id).style.display = 'block'; if (inst) inst.destroy();
+  return new Chart(document.getElementById(id).getContext('2d'), { type: 'bar', data: { labels, datasets: [{ data, backgroundColor: color, borderRadius: 3 }] }, options: { plugins: { legend: { display: false } }, scales: co(), responsive: true } });
+}
+function mkChartInst(id, inst, type, labels, datasets) {
+  if (inst) inst.destroy();
+  return new Chart(document.getElementById(id).getContext('2d'), { type, data: { labels, datasets }, options: { plugins: { legend: { display: false } }, scales: co(), responsive: true } });
+}
+
+// ═══ UTILS ═══
+async function api(path, body) {
+  const opts = { headers: { Authorization: 'Bearer ' + token } };
+  if (body) { opts.method = 'POST'; opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(path, opts);
+  if (r.status === 401) { logout(); throw 0; }
+  return r.json();
+}
+function txt(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+function vis(id, show, d = 'block') { const el = document.getElementById(id); if (el) el.style.display = show ? d : 'none'; }
+function hide(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+function setSub(id, t, good) { const el = document.getElementById(id); if (!el) return; el.textContent = t; el.className = 'sc-sub ' + (good ? 'up' : 'down'); el.style.color = ''; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+
+
+</body>
+</html>

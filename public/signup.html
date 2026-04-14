@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VitaAI — Create Account</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#060c18;--surface:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.08);--primary:#3dffc0;--secondary:#7b6fff;--accent:#ff6b9d;--text:#e8f0fe;--muted:rgba(232,240,254,0.5);}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse 70% 50% at 15% 40%,rgba(61,255,192,0.07) 0%,transparent 60%),radial-gradient(ellipse 50% 60% at 85% 70%,rgba(123,111,255,0.09) 0%,transparent 60%);pointer-events:none;}
+.left{width:42%;background:linear-gradient(145deg,rgba(61,255,192,0.06),rgba(123,111,255,0.08));border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;padding:60px;position:relative;z-index:1;}
+.brand{font-family:'Syne',sans-serif;font-size:34px;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;}
+.tagline{font-size:14px;color:var(--muted);margin-bottom:40px;line-height:1.6;}
+.features{display:flex;flex-direction:column;gap:18px;}
+.feat{display:flex;align-items:center;gap:14px;}
+.feat-icon{width:42px;height:42px;border-radius:12px;background:rgba(61,255,192,0.1);border:1px solid rgba(61,255,192,0.2);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
+.feat h4{font-family:'Syne',sans-serif;font-size:13.5px;font-weight:600;margin-bottom:2px;}
+.feat p{font-size:12.5px;color:var(--muted);}
+.right{flex:1;display:flex;align-items:center;justify-content:center;padding:40px;position:relative;z-index:1;overflow-y:auto;}
+.card{width:100%;max-width:440px;}
+.card-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;margin-bottom:4px;}
+.card-sub{font-size:13.5px;color:var(--muted);margin-bottom:24px;}
+/* Steps indicator */
+.steps-row{display:flex;align-items:center;margin-bottom:24px;gap:0;}
+.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--muted);transition:all .3s;flex-shrink:0;}
+.step-dot.active{border-color:var(--primary);background:rgba(61,255,192,0.15);color:var(--primary);}
+.step-dot.done{border-color:var(--primary);background:var(--primary);color:var(--bg);}
+.step-line{flex:1;height:1px;background:var(--border);transition:background .3s;}
+.step-line.done{background:var(--primary);}
+.step-lbl{font-size:11px;color:var(--muted);margin-top:3px;text-align:center;}
+.step-lbl.active{color:var(--primary);}
+/* Form */
+label{font-size:11.5px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:5px;}
+input,select{width:100%;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s;margin-bottom:14px;}
+input:focus,select:focus{border-color:var(--primary);}
+input::placeholder{color:var(--muted);}
+select option{background:#0d1a2e;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.btn-main{width:100%;padding:13px;background:linear-gradient(135deg,var(--primary),#1de9b6);color:var(--bg);border:none;border-radius:12px;font-family:'Syne',sans-serif;font-size:14.5px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px;}
+.btn-main:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 8px 24px rgba(61,255,192,0.3);}
+.btn-main:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.btn-sec{width:100%;padding:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;transition:all .2s;margin-top:8px;}
+.btn-sec:hover{border-color:var(--primary);color:var(--primary);}
+.btn-skip{width:100%;padding:10px;background:transparent;color:var(--muted);border:1px dashed var(--border);border-radius:12px;font-size:13px;cursor:pointer;transition:all .2s;margin-top:6px;}
+.btn-skip:hover{border-color:var(--accent);color:var(--accent);}
+.msg{padding:10px 14px;border-radius:10px;font-size:13px;margin-top:10px;display:none;}
+.msg.error{background:rgba(255,107,157,.1);border:1px solid rgba(255,107,157,.3);color:#ff6b9d;}
+.msg.success{background:rgba(61,255,192,.1);border:1px solid rgba(61,255,192,.3);color:var(--primary);}
+.msg.info{background:rgba(123,111,255,.1);border:1px solid rgba(123,111,255,.3);color:#7b6fff;}
+.link{text-align:center;margin-top:18px;font-size:13px;color:var(--muted);}
+.link a{color:var(--primary);text-decoration:none;}
+/* Camera */
+.step-hidden{display:none;}
+.camera-box{border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:12px;position:relative;}
+#videoBox{width:100%;height:100%;object-fit:cover;display:block;}
+.face-guide-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+.face-oval{width:150px;height:190px;border:2px solid var(--primary);border-radius:50%;opacity:.5;}
+.optional-badge{display:inline-block;background:rgba(255,209,102,0.15);border:1px solid rgba(255,209,102,0.4);color:#ffd166;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;margin-left:8px;vertical-align:middle;}
+/* Success screen */
+.success-screen{text-align:center;padding:20px 0;}
+.success-icon{font-size:64px;margin-bottom:16px;}
+.success-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;margin-bottom:8px;}
+.success-sub{font-size:14px;color:var(--muted);margin-bottom:20px;line-height:1.6;}
+@media(max-width:768px){.left{display:none;}.right{padding:24px;}}
+</style>
+</head>
+<body>
+
+<div class="left">
+  <div class="brand">VitaAI</div>
+  <div class="tagline">Your AI-powered health &amp; longevity platform.<br/>Know your body. Live better every day.</div>
+  <div class="features">
+    <div class="feat"><div class="feat-icon">🧠</div><div><h4>Health AI Coach</h4><p>LLaMA3-powered free health advice</p></div></div>
+    <div class="feat"><div class="feat-icon">📊</div><div><h4>Real Health Tracking</h4><p>Steps, calories, sleep — all from your data</p></div></div>
+    <div class="feat"><div class="feat-icon">😊</div><div><h4>Face Login</h4><p>Optional — log in with just your face</p></div></div>
+    <div class="feat"><div class="feat-icon">🩸</div><div><h4>Report Analyzer</h4><p>Upload any health report — AI explains all</p></div></div>
+  </div>
+</div>
+
+<div class="right">
+  <div class="card">
+    <div class="card-title">Create Your Account</div>
+    <div class="card-sub">Start your health journey — it's completely free</div>
+
+    <!-- Step indicators -->
+    <div class="steps-row">
+      <div>
+        <div class="step-dot active" id="sd1">1</div>
+        <div class="step-lbl active" id="sl1">Details</div>
+      </div>
+      <div class="step-line" id="sline1"></div>
+      <div>
+        <div class="step-dot" id="sd2">2</div>
+        <div class="step-lbl" id="sl2">Face (Optional)</div>
+      </div>
+    </div>
+
+    <!-- STEP 1: Account Details -->
+    <div id="step1">
+      <div>
+        <label>Full Name</label>
+        <input id="name" placeholder="e.g. Syam Kumar" autocomplete="name"/>
+      </div>
+      <div>
+        <label>Email Address</label>
+        <input id="email" type="email" placeholder="you@example.com" autocomplete="email"/>
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="password" type="password" placeholder="Minimum 6 characters"/>
+      </div>
+      <button class="btn-main" onclick="goToStep2()">Next → Register Face <span class="optional-badge">OPTIONAL</span></button>
+      <div id="msg1" class="msg"></div>
+      <div class="link">Already have an account? <a href="login.html">Login here</a></div>
+    </div>
+
+    <!-- STEP 2: Face Registration (Optional) -->
+    <div id="step2" class="step-hidden">
+      <div style="background:rgba(255,209,102,0.08);border:1px solid rgba(255,209,102,0.3);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#ffd166">
+        📸 <b>Face Login is optional.</b> You can skip this and use password login instead. You can always add face login later.
+      </div>
+      <div class="camera-box">
+        <video id="videoBox" autoplay playsinline muted></video>
+        <div class="face-guide-overlay"><div class="face-oval"></div></div>
+      </div>
+      <canvas id="canvas" style="display:none"></canvas>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:12px">Look straight at the camera, good lighting helps</p>
+      <button class="btn-sec" onclick="startCamera()">📷 Open Camera</button>
+      <button class="btn-main" id="captureBtn" onclick="captureAndRegister()" disabled>😊 Capture &amp; Create Account</button>
+      <button class="btn-skip" onclick="skipFaceAndSignup()">⏭ Skip — Create Account Without Face Login</button>
+      <button class="btn-sec" onclick="goBack()" style="margin-top:8px;background:transparent;color:var(--muted)">← Back to Details</button>
+      <div id="msg2" class="msg"></div>
+    </div>
+
+    <!-- SUCCESS SCREEN -->
+    <div id="stepSuccess" class="step-hidden">
+      <div class="success-screen">
+        <div class="success-icon">🎉</div>
+        <div class="success-title">Account Created!</div>
+        <div class="success-sub" id="successMsg">Your VitaAI account is ready. Login to start your health journey!</div>
+        <button class="btn-main" onclick="window.location.href='login.html'">🚀 Go to Login</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let stream = null;
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = 'msg ' + type; el.style.display = 'block';
+}
+
+function goToStep2() {
+  const name = document.getElementById('name').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const pass  = document.getElementById('password').value;
+  if (!name || !email || !pass) { showMsg('msg1', 'Please fill all required fields.', 'error'); return; }
+  if (!email.includes('@')) { showMsg('msg1', 'Enter a valid email address.', 'error'); return; }
+  if (pass.length < 6) { showMsg('msg1', 'Password must be at least 6 characters.', 'error'); return; }
+  // Show step 2
+  document.getElementById('step1').style.display = 'none';
+  document.getElementById('step2').classList.remove('step-hidden');
+  document.getElementById('sd1').className = 'step-dot done';
+  document.getElementById('sl1').className = 'step-lbl';
+  document.getElementById('sline1').className = 'step-line done';
+  document.getElementById('sd2').className = 'step-dot active';
+  document.getElementById('sl2').className = 'step-lbl active';
+}
+
+function goBack() {
+  document.getElementById('step2').classList.add('step-hidden');
+  document.getElementById('step1').style.display = 'block';
+  document.getElementById('sd1').className = 'step-dot active';
+  document.getElementById('sl1').className = 'step-lbl active';
+  document.getElementById('sline1').className = 'step-line';
+  document.getElementById('sd2').className = 'step-dot';
+  document.getElementById('sl2').className = 'step-lbl';
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+}
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    document.getElementById('videoBox').srcObject = stream;
+    document.getElementById('captureBtn').disabled = false;
+    showMsg('msg2', '✅ Camera ready. Look straight and click Capture.', 'info');
+  } catch(e) { showMsg('msg2', '❌ Camera access denied. Use "Skip" to create account without face login.', 'error'); }
+}
+
+async function captureAndRegister() {
+  const video  = document.getElementById('videoBox');
+  const canvas = document.getElementById('canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const img   = canvas.toDataURL('image/jpeg');
+  const email = document.getElementById('email').value.trim();
+  document.getElementById('captureBtn').disabled = true;
+  showMsg('msg2', '🔍 Detecting face…', 'info');
+  try {
+    const fr = await fetch('/face/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, img }) });
+    const fd = await fr.json();
+    if (!fd.ok) {
+      showMsg('msg2', '❌ ' + fd.msg + ' — You can still Skip and create account without face login.', 'error');
+      document.getElementById('captureBtn').disabled = false;
+      return;
+    }
+    showMsg('msg2', '✅ Face registered! Creating account…', 'success');
+    await createAccount('Face login enabled ✅');
+  } catch(e) {
+    showMsg('msg2', '⚠️ Face server offline. Use Skip to create account without face login.', 'error');
+    document.getElementById('captureBtn').disabled = false;
+  }
+}
+
+async function skipFaceAndSignup() {
+  showMsg('msg2', '⏳ Creating account without face login…', 'info');
+  await createAccount('No face login — you can add it later from the Login page');
+}
+
+async function createAccount(successNote) {
+  const name     = document.getElementById('name').value.trim();
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  try {
+    const sr = await fetch('/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, password }) });
+    const sd = await sr.json();
+    if (sd.message === 'Signup successful') {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      // Show success screen
+      document.getElementById('step2').classList.add('step-hidden');
+      document.getElementById('stepSuccess').classList.remove('step-hidden');
+      document.getElementById('successMsg').textContent = successNote + '. Login to start your health journey!';
+      document.getElementById('sd2').className = 'step-dot done';
+    } else {
+      showMsg('msg2', '❌ ' + sd.message, 'error');
+      document.getElementById('captureBtn').disabled = false;
+    }
+  } catch(e) {
+    showMsg('msg2', '⚠️ Server error. Make sure server is running (node server.js)', 'error');
+    document.getElementById('captureBtn').disabled = false;
+  }
+}
+</script>
+</body>
+</html>
