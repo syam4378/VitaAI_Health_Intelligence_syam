@@ -1,12 +1,8 @@
 """
 VitaAI Voice Agent — http://localhost:6000
-Uses: Deepgram (STT) + Groq (AI) + Piper (TTS)
-
-FIX for 'corrupt or unsupported data':
-  Browser records as audio/webm with opus codec.
-  Deepgram needs Content-Type: audio/webm;codecs=opus
+Uses: Deepgram (STT) + Groq (AI) + VoiceRSS (TTS)
 """
-import os, re, subprocess, time, requests
+import os, re, time, requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -14,13 +10,10 @@ from urllib.parse import quote
 
 load_dotenv()
 
-DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
-GROQ_API_KEY     = os.getenv("GROQ_API_KEY")
-OPENROUTER_KEY   = os.getenv("OPENROUTER_API_KEY")
-
-PIPER_PATH  = r"C:\piper\piper.exe"
-VOICE_MODEL = r"C:\piper\en_US-lessac-high.onnx"
-BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
+DEEPGRAM_API_KEY  = os.getenv("DEEPGRAM_API_KEY")
+GROQ_API_KEY      = os.getenv("GROQ_API_KEY")
+OPENROUTER_KEY    = os.getenv("OPENROUTER_API_KEY")
+VOICERSS_API_KEY = os.getenv("VOICERSS_API_KEY")
 
 SYSTEM_PROMPT = """You are SyamHealth AI, a personal health coach and assistant.
 Reply in 1-2 short sentences only. No bullet points, no symbols, no markdown.
@@ -32,22 +25,17 @@ CORS(app)
 
 
 def transcribe(audio_bytes: bytes) -> str:
-    """
-    FIX: Use audio/webm;codecs=opus — this is what Chrome/Firefox record.
-    Deepgram rejects plain 'audio/webm' for opus-encoded audio.
-    """
     r = requests.post(
         "https://api.deepgram.com/v1/listen?model=nova-2&language=en&punctuate=true&smart_format=true",
         headers={
             "Authorization": f"Token {DEEPGRAM_API_KEY}",
-            "Content-Type": "audio/webm;codecs=opus",  # KEY FIX
+            "Content-Type": "audio/webm;codecs=opus",
         },
         data=audio_bytes,
         timeout=30,
     )
     result = r.json()
     if "results" not in result:
-        # Try fallback without codec hint
         r2 = requests.post(
             "https://api.deepgram.com/v1/listen?model=nova-2&language=en&detect_language=true",
             headers={
@@ -66,12 +54,10 @@ def transcribe(audio_bytes: bytes) -> str:
 
 
 def ask_ai(user_text: str) -> str:
-    """Try Groq first, then OpenRouter."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages += chat_history[-10:]
     messages.append({"role": "user", "content": user_text})
 
-    # Try Groq (free, fastest)
     if GROQ_API_KEY:
         try:
             r = requests.post(
@@ -89,7 +75,6 @@ def ask_ai(user_text: str) -> str:
         except Exception as e:
             print(f"Groq failed: {e}")
 
-    # Fallback: OpenRouter
     if OPENROUTER_KEY:
         r = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -108,24 +93,26 @@ def ask_ai(user_text: str) -> str:
 
 
 def text_to_speech(text: str) -> bytes:
-    """Convert text to WAV bytes using Piper TTS."""
-    out_path = os.path.join(BASE_DIR, f"reply_{int(time.time()*1000)}.wav")
-    try:
-        p = subprocess.Popen(
-            [PIPER_PATH, "--model", VOICE_MODEL, "--output_file", out_path],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        )
-        p.communicate(input=text.encode(), timeout=15)
-    except Exception as e:
-        raise Exception(f"Piper TTS failed: {e}. Check PIPER_PATH in voice_agent.py")
+    """Convert text to WAV bytes using VoiceRSS TTS API."""
+    r = requests.post(
+        "https://api.voicerss.org/",
+        data={
+            "key": VOICERSS_API_KEY,
+            "src": text,
+            "hl":  "en-us",
+            "v":   "Linda",       # voice: Linda, Amy, Mary, Mike, etc.
+            "c":   "WAV",         # audio codec
+            "f":   "16khz_16bit_mono",
+            "r":   "0",           # speed: -10 (slow) to 10 (fast)
+        },
+        timeout=15,
+    )
 
-    if not os.path.exists(out_path):
-        raise Exception(f"Piper did not create output file. Check: {PIPER_PATH}")
+    # VoiceRSS returns an error as plain text starting with "ERROR"
+    if r.content[:5] == b"ERROR" or r.headers.get("Content-Type", "").startswith("text"):
+        raise Exception(f"VoiceRSS TTS error: {r.text.strip()}")
 
-    with open(out_path, 'rb') as f:
-        wav_data = f.read()
-    os.remove(out_path)
-    return wav_data
+    return r.content   # raw WAV bytes
 
 
 @app.route("/voice/chat", methods=["POST"])
@@ -137,27 +124,22 @@ def chat():
         return jsonify({"error": "Audio too short. Hold the button longer and speak clearly."}), 400
 
     try:
-        # Step 1: Transcribe
         user_text = transcribe(audio_bytes)
         print(f"👤 User: '{user_text}'")
 
         if not user_text:
             return jsonify({"error": "No speech detected. Speak clearly and try again."}), 400
 
-        # Step 2: AI reply
         reply = ask_ai(user_text)
         print(f"🤖 Agent: {reply}")
 
-        # Update history
         chat_history.append({"role": "user",      "content": user_text})
         chat_history.append({"role": "assistant", "content": reply})
         if len(chat_history) > 20:
             chat_history.pop(0); chat_history.pop(0)
 
-        # Step 3: Text to speech
         wav_data = text_to_speech(reply)
 
-        # Step 4: Return
         response = app.response_class(wav_data, mimetype="audio/wav")
         response.headers["Cache-Control"] = "no-cache"
         response.headers["X-User-Text"]   = quote(user_text)
@@ -173,10 +155,11 @@ def chat():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status": "ok",
-        "groq": bool(GROQ_API_KEY),
-        "openrouter": bool(OPENROUTER_KEY),
-        "deepgram": bool(DEEPGRAM_API_KEY)
+        "status":      "ok",
+        "groq":        bool(GROQ_API_KEY),
+        "openrouter":  bool(OPENROUTER_KEY),
+        "deepgram":    bool(DEEPGRAM_API_KEY),
+        "voicerss":    bool(VOICERSS_API_KEY),
     })
 
 
@@ -186,6 +169,6 @@ if __name__ == "__main__":
     print(f"  Groq:      {'✅' if GROQ_API_KEY else '❌ missing'}")
     print(f"  OpenRouter:{'✅' if OPENROUTER_KEY else '❌ missing'}")
     print(f"  Deepgram:  {'✅' if DEEPGRAM_API_KEY else '❌ missing'}")
-    print(f"  Piper:     {PIPER_PATH}")
+    print(f"  VoiceRSS:  ✅ configured")
     print("=" * 52)
     app.run(port=6000, debug=False)
