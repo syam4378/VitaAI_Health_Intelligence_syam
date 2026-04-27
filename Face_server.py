@@ -7,6 +7,9 @@ from PIL import Image
 from io import BytesIO
 
 app = Flask(__name__)
+@app.route("/", methods=["GET", "HEAD"])
+def index():
+    return jsonify({"status": "VitaAI Face Server running"}), 200
 CORS(app)
 DB       = "faces.pkl"
 detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
