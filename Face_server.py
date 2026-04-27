@@ -12,6 +12,10 @@ CORS(app)  # ← MUST be right after app, before all routes
 # ── PERSISTENT STORAGE — survives Render redeploys ────────
 # On Render: add a Disk with mount path /data
 # Locally: saves in current folder
+
+@app.route("/", methods=["GET", "HEAD"])
+def index():
+    return jsonify({"status": "VitaAI Face Server running"}), 200
 DATA_DIR = "/data" if os.path.exists("/data") else "."
 DB = os.path.join(DATA_DIR, "faces.pkl")
 

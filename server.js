@@ -29,22 +29,52 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// ── DB ───────────────────────────────────────────────────
-const db = mysql.createConnection({
-  host:     process.env.DB_HOST,
-  user:     process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port:     process.env.DB_PORT || 3306,
-  charset:  'utf8mb4',
-  ssl: { rejectUnauthorized: false }
-});
-db.connect(err => {
-  if (err) { console.log('DB Error:', err.message); }
-  else { console.log('✅ MySQL Connected to', process.env.DB_NAME); createTables(); }
-});
+// ── DB WITH AUTO-RECONNECT ────────────────────────────────
+let db;
+
+function createConnection() {
+  db = mysql.createConnection({
+    host:     process.env.DB_HOST,
+    user:     process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port:     process.env.DB_PORT || 3306,
+    charset:  'utf8mb4',
+    ssl: { rejectUnauthorized: false },
+    connectTimeout: 30000,
+  });
+
+  db.connect(err => {
+    if (err) {
+      console.log('DB connect error:', err.message, '— retrying in 5s...');
+      setTimeout(createConnection, 5000);
+      return;
+    }
+    console.log('✅ MySQL Connected to', process.env.DB_NAME);
+    createTables();
+  });
+
+  // KEY FIX: reconnect when connection is lost
+  db.on('error', err => {
+    console.log('DB error:', err.code);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST' ||
+        err.code === 'ECONNRESET' ||
+        err.code === 'ETIMEDOUT' ||
+        err.fatal) {
+      console.log('Reconnecting to DB...');
+      createConnection();
+    } else {
+      throw err;
+    }
+  });
+}
+
+createConnection();
+
 function q(sql, params = []) {
-  return new Promise((rv, rj) => db.query(sql, params, (e, r) => e ? rj(e) : rv(r)));
+  return new Promise((rv, rj) => {
+    db.query(sql, params, (e, r) => e ? rj(e) : rv(r));
+  });
 }
 
 // ── CREATE TABLES ─────────────────────────────────────────
@@ -120,6 +150,14 @@ function createTables() {
   console.log('✅ Tables ready');
 }
 
+// ── KEEP DB ALIVE — ping every 4 minutes ─────────────────
+setInterval(() => {
+  db.query('SELECT 1', err => {
+    if (err) console.log('DB ping failed:', err.code);
+    else console.log('DB ping ✅');
+  });
+}, 4 * 60 * 1000);
+
 // ── MIDDLEWARE ────────────────────────────────────────────
 function verifyToken(req, res, next) {
   const h = req.headers['authorization'];
@@ -175,24 +213,18 @@ async function callAI(messages, systemPrompt, maxTokens = 600) {
   throw new Error('No AI API key configured.');
 }
 
-// ── PYTHON PROXY — FIXED for https Render URLs ────────────
+// ── PYTHON PROXY ──────────────────────────────────────────
 function callPython(route, body) {
   return new Promise((rv, rj) => {
-    const data    = JSON.stringify(body);
-    const url     = new URL(FACE_URL);
-    const isHttps = url.protocol === 'https:';
-    const port    = url.port ? parseInt(url.port) : (isHttps ? 443 : 80);
+    const data      = JSON.stringify(body);
+    const url       = new URL(FACE_URL);
+    const isHttps   = url.protocol === 'https:';
+    const port      = url.port ? parseInt(url.port) : (isHttps ? 443 : 80);
     const transport = isHttps ? https : http;
 
     const req = transport.request({
-      hostname: url.hostname,
-      port,
-      path:   route,
-      method: 'POST',
-      headers: {
-        'Content-Type':   'application/json',
-        'Content-Length': Buffer.byteLength(data)
-      }
+      hostname: url.hostname, port, path: route, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
     }, res => {
       let raw = '';
       res.on('data', c => raw += c);
@@ -202,8 +234,7 @@ function callPython(route, body) {
       });
     });
     req.on('error', e => rj(new Error('Face server not reachable: ' + e.message)));
-    req.write(data);
-    req.end();
+    req.write(data); req.end();
   });
 }
 
@@ -213,10 +244,7 @@ app.get('/home',   (req, res) => res.sendFile(path.join(__dirname, 'public', 'ho
 app.get('/login',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'signup.html')));
 
-// ── AUTH VERIFY ───────────────────────────────────────────
-app.get('/auth/verify', verifyToken, (req, res) => {
-  res.json({ valid: true });
-});
+app.get('/auth/verify', verifyToken, (req, res) => res.json({ valid: true }));
 
 // ── FACE ──────────────────────────────────────────────────
 app.post('/face/register', async (req, res) => {
@@ -232,7 +260,7 @@ app.post('/face/emotion', async (req, res) => {
   catch(e) { res.status(200).json({ emotion: 'neutral', ok: false }); }
 });
 
-// ── VOICE — FIXED for https Render URLs ───────────────────
+// ── VOICE ─────────────────────────────────────────────────
 app.post('/voice/chat', verifyToken, (req, res) => {
   const chunks = [];
   req.on('data', c => chunks.push(c));
@@ -244,28 +272,19 @@ app.post('/voice/chat', verifyToken, (req, res) => {
     const transport = isHttps ? https : http;
 
     const pr = transport.request({
-      hostname: url.hostname,
-      port,
-      path:   '/voice/chat',
-      method: 'POST',
-      headers: {
-        'Content-Type':   req.headers['content-type'] || 'audio/webm',
-        'Content-Length': audio.length
-      }
+      hostname: url.hostname, port, path: '/voice/chat', method: 'POST',
+      headers: { 'Content-Type': req.headers['content-type'] || 'audio/webm', 'Content-Length': audio.length }
     }, proxyRes => {
       res.set({
-        'Content-Type':  'audio/wav',
-        'Cache-Control': 'no-cache',
-        'Accept-Ranges': 'none',
-        'X-User-Text':   proxyRes.headers['x-user-text']  || '',
-        'X-Agent-Text':  proxyRes.headers['x-agent-text'] || '',
+        'Content-Type': 'audio/wav', 'Cache-Control': 'no-cache', 'Accept-Ranges': 'none',
+        'X-User-Text': proxyRes.headers['x-user-text'] || '',
+        'X-Agent-Text': proxyRes.headers['x-agent-text'] || '',
         'Access-Control-Expose-Headers': 'X-User-Text, X-Agent-Text'
       });
       proxyRes.pipe(res);
     });
     pr.on('error', () => res.status(500).json({ error: 'Voice agent offline.' }));
-    pr.write(audio);
-    pr.end();
+    pr.write(audio); pr.end();
   });
 });
 
@@ -308,41 +327,32 @@ app.get('/profile', verifyToken, (req, res) => {
 });
 
 app.post('/profile', verifyToken, (req, res) => {
-  upload.single('img')(req, res, (multerErr) => {
+  upload.single('img')(req, res, () => {
     const { name, email, phone, age, weight, height, blood_group, gender, activity_level } = req.body;
     const newImg = req.file ? req.file.filename : null;
     db.query('SELECT id, img FROM profile WHERE user_id=?', [req.user.id], (err, r) => {
       if (err) return res.status(500).json({ message: 'DB error: ' + err.message });
-      const oldImg    = r[0]?.img || null;
+      const oldImg = r[0]?.img || null;
       const imgToSave = newImg || oldImg;
       if (newImg && oldImg) {
         const op = path.join(__dirname, 'uploads', oldImg);
         if (fs.existsSync(op)) try { fs.unlinkSync(op); } catch(e) {}
       }
-      const vals = [
-        name || '', email || '', phone || '', imgToSave,
-        parseInt(age) || null, parseFloat(weight) || null,
-        parseInt(height) || null, blood_group || '',
-        gender || 'male', activity_level || 'moderate'
-      ];
+      const vals = [name||'', email||'', phone||'', imgToSave,
+        parseInt(age)||null, parseFloat(weight)||null, parseInt(height)||null,
+        blood_group||'', gender||'male', activity_level||'moderate'];
       if (r.length > 0) {
-        db.query(
-          'UPDATE profile SET name=?,email=?,phone=?,img=?,age=?,weight=?,height=?,blood_group=?,gender=?,activity_level=? WHERE user_id=?',
-          [...vals, req.user.id],
-          e2 => {
+        db.query('UPDATE profile SET name=?,email=?,phone=?,img=?,age=?,weight=?,height=?,blood_group=?,gender=?,activity_level=? WHERE user_id=?',
+          [...vals, req.user.id], e2 => {
             if (e2) return res.status(500).json({ message: 'Update error: ' + e2.message });
             res.json({ message: 'Profile updated', img: imgToSave });
-          }
-        );
+          });
       } else {
-        db.query(
-          'INSERT INTO profile (user_id,name,email,phone,img,age,weight,height,blood_group,gender,activity_level) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-          [req.user.id, ...vals],
-          e2 => {
+        db.query('INSERT INTO profile (user_id,name,email,phone,img,age,weight,height,blood_group,gender,activity_level) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+          [req.user.id, ...vals], e2 => {
             if (e2) return res.status(500).json({ message: 'Insert error: ' + e2.message });
             res.json({ message: 'Profile saved', img: imgToSave });
-          }
-        );
+          });
       }
     });
   });
@@ -366,61 +376,25 @@ function calcScore(c) {
     else score += 5;
   }
   const st = parseInt(c.steps) || 0;
-  if (st > 0) {
-    maxPts += 20;
-    if (st >= 10000) score += 20;
-    else if (st >= 7500) score += 16;
-    else if (st >= 5000) score += 12;
-    else if (st >= 3000) score += 8;
-    else score += 4;
-  }
+  if (st > 0) { maxPts += 20; if (st>=10000) score+=20; else if (st>=7500) score+=16; else if (st>=5000) score+=12; else if (st>=3000) score+=8; else score+=4; }
   const w = parseInt(c.water_intake) || 0;
-  if (w > 0) {
-    maxPts += 15;
-    if (w >= 8) score += 15;
-    else if (w >= 6) score += 12;
-    else if (w >= 4) score += 8;
-    else score += 4;
-  }
-  if (c.mood) {
-    maxPts += 20;
-    const m = c.mood;
-    if (m.includes('Great!')) score += 20;
-    else if (m.includes('Good')) score += 15;
-    else if (m.includes('Neutral')) score += 10;
-    else score += 4;
-  }
-  if (c.energy_level) {
-    maxPts += 10;
-    const e = c.energy_level;
-    if (e.includes('High')) score += 10;
-    else if (e.includes('Medium')) score += 8;
-    else if (e.includes('Low') && !e.includes('Very')) score += 5;
-    else score += 2;
-  }
+  if (w > 0) { maxPts += 15; if (w>=8) score+=15; else if (w>=6) score+=12; else if (w>=4) score+=8; else score+=4; }
+  if (c.mood) { maxPts+=20; const m=c.mood; if (m.includes('Great!')) score+=20; else if (m.includes('Good')) score+=15; else if (m.includes('Neutral')) score+=10; else score+=4; }
+  if (c.energy_level) { maxPts+=10; const e=c.energy_level; if (e.includes('High')) score+=10; else if (e.includes('Medium')) score+=8; else if (e.includes('Low')&&!e.includes('Very')) score+=5; else score+=2; }
   const em = parseInt(c.exercise_minutes) || 0;
-  if (em > 0 || c.exercise_done) {
-    maxPts += 10;
-    if (em >= 45) score += 10;
-    else if (em >= 30) score += 8;
-    else if (em >= 15) score += 5;
-    else score += 3;
-  }
+  if (em > 0 || c.exercise_done) { maxPts+=10; if (em>=45) score+=10; else if (em>=30) score+=8; else if (em>=15) score+=5; else score+=3; }
   if (maxPts === 0) return 0;
   return Math.min(100, Math.round((score / maxPts) * 100));
 }
-
 function calcCalGoal(p) {
   if (!p || !p.weight || !p.height || !p.age) return 2000;
   const bmr = p.gender === 'female'
-    ? 447.593 + (9.247 * p.weight) + (3.098 * p.height) - (4.330 * p.age)
-    : 88.362 + (13.397 * p.weight) + (4.799 * p.height) - (5.677 * p.age);
-  const m = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 };
+    ? 447.593 + (9.247*p.weight) + (3.098*p.height) - (4.330*p.age)
+    : 88.362 + (13.397*p.weight) + (4.799*p.height) - (5.677*p.age);
+  const m = { sedentary:1.2, light:1.375, moderate:1.55, active:1.725, very_active:1.9 };
   return Math.round(bmr * (m[p.activity_level] || 1.55));
 }
-function stepsToCalories(steps, weight = 70) {
-  return Math.round(steps * 0.04 * (weight / 70));
-}
+function stepsToCalories(steps, weight=70) { return Math.round(steps * 0.04 * (weight/70)); }
 
 // ── CHECKIN ───────────────────────────────────────────────
 app.post('/checkin', verifyToken, async (req, res) => {
@@ -428,23 +402,16 @@ app.post('/checkin', verifyToken, async (req, res) => {
           calories_burned, exercise_done, exercise_minutes, exercise_type,
           body_weight, heart_rate, notes } = req.body;
   let prof = null;
-  try { const r = await q('SELECT * FROM profile WHERE user_id=?', [req.user.id]); prof = r[0] || null; } catch(e) {}
-  const stepsN   = parseInt(steps) || 0;
-  const calIn    = parseInt(calories_burned) || 0;
-  const finalCal = calIn > 0 ? calIn : (stepsN > 0 ? stepsToCalories(stepsN, prof?.weight || 70) : 0);
-  const hs = calcScore({ sleep_quality, sleep_hours, energy_level, mood, water_intake, steps: stepsN, exercise_done, exercise_minutes });
+  try { const r = await q('SELECT * FROM profile WHERE user_id=?', [req.user.id]); prof = r[0]||null; } catch(e) {}
+  const stepsN   = parseInt(steps)||0;
+  const calIn    = parseInt(calories_burned)||0;
+  const finalCal = calIn>0 ? calIn : (stepsN>0 ? stepsToCalories(stepsN, prof?.weight||70) : 0);
+  const hs = calcScore({ sleep_quality, sleep_hours, energy_level, mood, water_intake, steps:stepsN, exercise_done, exercise_minutes });
   try {
-    await q(
-      `INSERT INTO health_checkins
-        (user_id,sleep_quality,sleep_hours,energy_level,mood,water_intake,steps,
-         calories_burned,exercise_done,exercise_minutes,exercise_type,
-         body_weight,heart_rate,notes,health_score)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [req.user.id, sleep_quality||'', parseFloat(sleep_hours)||0,
-       energy_level||'', mood||'', parseInt(water_intake)||0, stepsN, finalCal,
-       exercise_done?1:0, parseInt(exercise_minutes)||0, exercise_type||null,
-       parseFloat(body_weight)||0, parseInt(heart_rate)||0, notes||'', hs]
-    );
+    await q(`INSERT INTO health_checkins (user_id,sleep_quality,sleep_hours,energy_level,mood,water_intake,steps,calories_burned,exercise_done,exercise_minutes,exercise_type,body_weight,heart_rate,notes,health_score) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [req.user.id, sleep_quality||'', parseFloat(sleep_hours)||0, energy_level||'', mood||'',
+       parseInt(water_intake)||0, stepsN, finalCal, exercise_done?1:0, parseInt(exercise_minutes)||0,
+       exercise_type||null, parseFloat(body_weight)||0, parseInt(heart_rate)||0, notes||'', hs]);
     const summary = `Check-in: sleep=${sleep_quality}(${sleep_hours||0}h), energy=${energy_level}, mood=${mood}, steps=${stepsN}, water=${water_intake||0}, cal=${finalCal}, score=${hs}/100`;
     db.query('INSERT INTO health_chat_history (user_id,role,content) VALUES (?,?,?)', [req.user.id,'system',summary], ()=>{});
     res.json({ message: 'Check-in saved!', health_score: hs, calories_auto: finalCal });
@@ -453,7 +420,7 @@ app.post('/checkin', verifyToken, async (req, res) => {
 
 app.get('/checkins', verifyToken, (req, res) => {
   db.query('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 30',
-    [req.user.id], (err, r) => err ? res.status(500).json({ message: 'Error' }) : res.json({ checkins: r }));
+    [req.user.id], (err, r) => err ? res.status(500).json({ message:'Error' }) : res.json({ checkins:r }));
 });
 
 // ── DASHBOARD ─────────────────────────────────────────────
@@ -461,131 +428,86 @@ app.get('/dashboard/stats', verifyToken, async (req, res) => {
   const uid = req.user.id;
   try {
     const profRows  = await q('SELECT * FROM profile WHERE user_id=?', [uid]);
-    const prof      = profRows[0] || null;
+    const prof      = profRows[0]||null;
     const checkins  = await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 30', [uid]);
     const todayRows = await q('SELECT * FROM health_checkins WHERE user_id=? AND DATE(created_at)=CURDATE() ORDER BY created_at DESC LIMIT 1', [uid]);
-    const today     = todayRows[0] || null;
+    const today     = todayRows[0]||null;
     const total     = checkins.length;
-    const last7     = checkins.slice(0, 7);
-    const withScore = last7.filter(c => (c.health_score || 0) > 0);
-    const avgScore  = withScore.length ? Math.round(withScore.reduce((s,c) => s+c.health_score, 0) / withScore.length) : 0;
-    let streak = 0;
-    const dates = checkins.map(c => new Date(c.created_at).toDateString());
-    let chk = new Date();
+    const withScore = checkins.slice(0,7).filter(c=>(c.health_score||0)>0);
+    const avgScore  = withScore.length ? Math.round(withScore.reduce((s,c)=>s+c.health_score,0)/withScore.length) : 0;
+    let streak=0; const dates=checkins.map(c=>new Date(c.created_at).toDateString()); let chk=new Date();
     while (dates.includes(chk.toDateString())) { streak++; chk.setDate(chk.getDate()-1); }
     const calorieGoal = calcCalGoal(prof);
-    let bmi = null, bmiLabel = '';
-    if (prof?.weight && prof?.height) {
-      const h = prof.height / 100;
-      bmi = (prof.weight / (h * h)).toFixed(1);
-      const b = parseFloat(bmi);
-      bmiLabel = b < 18.5 ? 'Underweight' : b < 25 ? 'Normal ✅' : b < 30 ? 'Overweight' : 'Obese';
-    }
-    const chartData = checkins.slice(0, total >= 14 ? 30 : 7).reverse();
-    const days      = chartData.map(c => new Date(c.created_at).toLocaleDateString('en-IN', { month:'short', day:'numeric' }));
-    const scoreData = chartData.map(c => c.health_score || 0);
-    const stepsData = chartData.map(c => c.steps || 0);
-    const calData   = chartData.map(c => c.calories_burned || 0);
-    const waterData = chartData.map(c => c.water_intake || 0);
-    const sleepData = chartData.map(c => {
-      if (c.sleep_hours > 0) return parseFloat(c.sleep_hours);
-      const sq = c.sleep_quality || '';
-      if (sq.includes('8+')) return 8.5;
-      if (sq.includes('7-8') || sq.includes('7–8')) return 7.5;
-      if (sq.includes('5-6') || sq.includes('5–6')) return 5.5;
-      if (sq.includes('5h')) return 4;
-      return null;
-    });
-    const moodScore = { 'Great!':5, 'Good':4, 'Neutral':3, 'Sad/Anxious':1 };
-    const moodData  = chartData.map(c => {
-      for (const [k,v] of Object.entries(moodScore)) { if ((c.mood||'').includes(k)) return v; }
-      return null;
-    });
+    let bmi=null, bmiLabel='';
+    if (prof?.weight && prof?.height) { const h=prof.height/100; bmi=(prof.weight/(h*h)).toFixed(1); const b=parseFloat(bmi); bmiLabel=b<18.5?'Underweight':b<25?'Normal ✅':b<30?'Overweight':'Obese'; }
+    const chartData = checkins.slice(0, total>=14?30:7).reverse();
+    const days      = chartData.map(c=>new Date(c.created_at).toLocaleDateString('en-IN',{month:'short',day:'numeric'}));
+    const moodScore = {'Great!':5,'Good':4,'Neutral':3,'Sad/Anxious':1};
     res.json({
-      hasData: total > 0, score: avgScore, totalCheckins: total, streak,
-      calorieGoal, bmi, bmiLabel,
-      profile: prof ? { age:prof.age, weight:prof.weight, height:prof.height, blood_group:prof.blood_group, gender:prof.gender, activity_level:prof.activity_level } : null,
-      today: today ? {
-        sleep:today.sleep_quality, sleep_hours:today.sleep_hours,
-        energy:today.energy_level, mood:today.mood,
-        water:today.water_intake, steps:today.steps,
-        calories:today.calories_burned, exercise_done:today.exercise_done,
-        exercise_minutes:today.exercise_minutes, exercise_type:today.exercise_type,
-        body_weight:today.body_weight, heart_rate:today.heart_rate,
-        health_score:today.health_score
-      } : null,
-      charts: { days, scoreData, moodData, sleepData, stepsData, calData, waterData },
-      chartDays: total >= 14 ? 30 : 7
+      hasData:total>0, score:avgScore, totalCheckins:total, streak, calorieGoal, bmi, bmiLabel,
+      profile: prof?{age:prof.age,weight:prof.weight,height:prof.height,blood_group:prof.blood_group,gender:prof.gender,activity_level:prof.activity_level}:null,
+      today: today?{sleep:today.sleep_quality,sleep_hours:today.sleep_hours,energy:today.energy_level,mood:today.mood,water:today.water_intake,steps:today.steps,calories:today.calories_burned,exercise_done:today.exercise_done,exercise_minutes:today.exercise_minutes,exercise_type:today.exercise_type,body_weight:today.body_weight,heart_rate:today.heart_rate,health_score:today.health_score}:null,
+      charts:{days, scoreData:chartData.map(c=>c.health_score||0), moodData:chartData.map(c=>{for(const[k,v]of Object.entries(moodScore)){if((c.mood||'').includes(k))return v;}return null;}),
+        sleepData:chartData.map(c=>{if(c.sleep_hours>0)return parseFloat(c.sleep_hours);const sq=c.sleep_quality||'';if(sq.includes('8+'))return 8.5;if(sq.includes('7-8')||sq.includes('7–8'))return 7.5;if(sq.includes('5-6')||sq.includes('5–6'))return 5.5;return null;}),
+        stepsData:chartData.map(c=>c.steps||0), calData:chartData.map(c=>c.calories_burned||0), waterData:chartData.map(c=>c.water_intake||0)},
+      chartDays:total>=14?30:7
     });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
 // ── AI CHAT ───────────────────────────────────────────────
 app.post('/ai/chat', verifyToken, async (req, res) => {
   const { messages } = req.body;
-  let ctx = '';
+  let ctx='';
   try {
-    const pr = await q('SELECT * FROM profile WHERE user_id=?', [req.user.id]);
-    const ci = await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 3', [req.user.id]);
-    const p  = pr[0];
-    if (p) {
-      ctx = `User: ${req.user.name}`;
-      if (p.age)    ctx += `, Age: ${p.age}`;
-      if (p.weight) ctx += `, Weight: ${p.weight}kg`;
-      if (p.height) ctx += `, Height: ${p.height}cm`;
-      if (p.blood_group) ctx += `, Blood: ${p.blood_group}`;
-      if (p.weight && p.height) { const h = p.height/100; ctx += `, BMI: ${(p.weight/(h*h)).toFixed(1)}`; }
-      ctx += `, Gender: ${p.gender || 'male'}`;
-    }
-    if (ci.length > 0) {
-      const l = ci[0];
-      ctx += `\nLatest check-in: Sleep ${l.sleep_hours > 0 ? l.sleep_hours+'h' : l.sleep_quality}, Energy: ${l.energy_level}, Mood: ${l.mood}, Steps: ${(l.steps||0).toLocaleString()}, Water: ${l.water_intake||0} glasses, Cal burned: ${l.calories_burned||0} kcal, HR: ${l.heart_rate||'—'}, Health score: ${l.health_score||0}/100`;
-    }
-  } catch(e) {}
-  const sysPrompt = `You are SyamHealth AI, a warm personal health coach.\n${ctx ? 'User Profile:\n'+ctx : ''}\nGive friendly, actionable, personalized health advice in 2-4 sentences. NEVER give dangerous advice. For serious symptoms say "please consult a doctor". Use emojis occasionally.`;
+    const pr=await q('SELECT * FROM profile WHERE user_id=?',[req.user.id]);
+    const ci=await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 3',[req.user.id]);
+    const p=pr[0];
+    if(p){ctx=`User: ${req.user.name}`;if(p.age)ctx+=`, Age: ${p.age}`;if(p.weight)ctx+=`, Weight: ${p.weight}kg`;if(p.height)ctx+=`, Height: ${p.height}cm`;if(p.blood_group)ctx+=`, Blood: ${p.blood_group}`;if(p.weight&&p.height){const h=p.height/100;ctx+=`, BMI: ${(p.weight/(h*h)).toFixed(1)}`;}ctx+=`, Gender: ${p.gender||'male'}`;}
+    if(ci.length>0){const l=ci[0];ctx+=`\nLatest: Sleep ${l.sleep_hours>0?l.sleep_hours+'h':l.sleep_quality}, Energy: ${l.energy_level}, Mood: ${l.mood}, Steps: ${(l.steps||0).toLocaleString()}, Water: ${l.water_intake||0}, Cal: ${l.calories_burned||0}, Score: ${l.health_score||0}/100`;}
+  } catch(e){}
+  const sysPrompt=`You are SyamHealth AI, a warm personal health coach.\n${ctx?'User Profile:\n'+ctx:''}\nGive friendly, actionable advice in 2-4 sentences. For serious symptoms say "please consult a doctor". Use emojis occasionally.`;
   try {
-    const reply = await callAI(messages.slice(-10), sysPrompt, 600);
-    db.query('INSERT INTO health_chat_history (user_id,role,content) VALUES (?,?,?)', [req.user.id,'assistant',reply], ()=>{});
-    res.json({ reply });
-  } catch(e) { res.status(500).json({ error: 'AI error: ' + e.message }); }
+    const reply=await callAI(messages.slice(-10),sysPrompt,600);
+    db.query('INSERT INTO health_chat_history (user_id,role,content) VALUES (?,?,?)',[req.user.id,'assistant',reply],()=>{});
+    res.json({reply});
+  } catch(e){res.status(500).json({error:'AI error: '+e.message});}
 });
 
 // ── DAILY REPORT ──────────────────────────────────────────
 app.get('/ai/daily-report', verifyToken, async (req, res) => {
   try {
-    const profRows = await q('SELECT * FROM profile WHERE user_id=?', [req.user.id]);
-    const ci       = await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 7', [req.user.id]);
-    const prof     = profRows[0] || null;
-    const today    = ci[0] || null;
-    if (!today) return res.json({ report: 'No check-in data yet. Complete a Daily Check-in first!' });
-    const avg7Steps = Math.round(ci.reduce((s,c) => s+(c.steps||0), 0) / ci.length);
-    const scored    = ci.filter(c => c.health_score > 0);
-    const avg7Score = scored.length ? Math.round(scored.reduce((s,c) => s+c.health_score, 0) / scored.length) : 0;
-    const prompt = `Generate a detailed daily health report.\n${prof?.name?`Name: ${prof.name}`:''}\n${prof?.age?`Age: ${prof.age}, Gender: ${prof.gender||'male'}, Weight: ${prof.weight}kg, Height: ${prof.height}cm`:''}\nTODAY:\n- Sleep: ${today.sleep_quality} (${today.sleep_hours}h)\n- Energy: ${today.energy_level}\n- Mood: ${today.mood}\n- Steps: ${(today.steps||0).toLocaleString()}\n- Water: ${today.water_intake||0} glasses\n- Calories: ${today.calories_burned||0} kcal\n- Exercise: ${today.exercise_minutes||0} min ${today.exercise_type||''}\n- HR: ${today.heart_rate>0?today.heart_rate+' bpm':'not logged'}\n- Score: ${today.health_score||0}/100\n7-DAY AVG: score=${avg7Score}/100, steps=${avg7Steps.toLocaleString()}\n\nFormat with sections: 📊 Today's Summary, ✅ What You Did Well, ⚠️ Needs Improvement, 🥗 Food Recommendations, 💪 Exercise Plan, 😴 Sleep Tip, 🎯 Tomorrow's Goal`;
-    const report = await callAI([{ role:'user', content:prompt }], 'You are a personal health coach. Be specific, warm, use actual data.', 800);
-    res.json({ report });
-  } catch(e) { res.status(500).json({ error: 'Report error: ' + e.message }); }
+    const profRows=await q('SELECT * FROM profile WHERE user_id=?',[req.user.id]);
+    const ci=await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 7',[req.user.id]);
+    const prof=profRows[0]||null; const today=ci[0]||null;
+    if(!today) return res.json({report:'No check-in data yet. Complete a Daily Check-in first!'});
+    const avg7Steps=Math.round(ci.reduce((s,c)=>s+(c.steps||0),0)/ci.length);
+    const scored=ci.filter(c=>c.health_score>0);
+    const avg7Score=scored.length?Math.round(scored.reduce((s,c)=>s+c.health_score,0)/scored.length):0;
+    const prompt=`Generate a daily health report.\n${prof?.name?`Name: ${prof.name}`:''}\n${prof?.age?`Age: ${prof.age}, Gender: ${prof.gender||'male'}, Weight: ${prof.weight}kg, Height: ${prof.height}cm`:''}\nTODAY: Sleep: ${today.sleep_quality}(${today.sleep_hours}h), Energy: ${today.energy_level}, Mood: ${today.mood}, Steps: ${(today.steps||0).toLocaleString()}, Water: ${today.water_intake||0}, Cal: ${today.calories_burned||0}, Exercise: ${today.exercise_minutes||0}min, HR: ${today.heart_rate>0?today.heart_rate+' bpm':'not logged'}, Score: ${today.health_score||0}/100\n7-DAY AVG: score=${avg7Score}/100, steps=${avg7Steps.toLocaleString()}\n\nFormat: 📊 Today's Summary, ✅ What You Did Well, ⚠️ Needs Improvement, 🥗 Food Recommendations, 💪 Exercise Plan, 😴 Sleep Tip, 🎯 Tomorrow's Goal`;
+    const report=await callAI([{role:'user',content:prompt}],'You are a personal health coach. Be specific and warm.',800);
+    res.json({report});
+  } catch(e){res.status(500).json({error:'Report error: '+e.message});}
 });
 
 // ── ANALYZE REPORT ────────────────────────────────────────
 app.post('/ai/analyze-report', verifyToken, async (req, res) => {
   const { reportText } = req.body;
-  const sysPrompt = `You are a medical report analyzer. Extract ALL test values and return ONLY a JSON array.\nFormat: [{"name":"Test Name","value":"result","unit":"unit","status":"normal|high|low","range":"normal range","advice":"specific advice"}]\nReturn ONLY valid JSON array. No text, no markdown.`;
+  const sysPrompt=`Analyze health/medical reports. Extract ALL test values. Return ONLY a JSON array:\n[{"name":"Test","value":"result","unit":"unit","status":"normal|high|low","range":"normal range","advice":"specific advice"}]\nReturn ONLY valid JSON. No markdown.`;
   try {
-    let txt = await callAI([{ role:'user', content:`Analyze:\n${(reportText||'').slice(0,4000)}` }], sysPrompt, 1500);
-    txt = txt.trim().replace(/```json|```/g,'').trim();
-    try { res.json({ items: JSON.parse(txt) }); }
-    catch(e) { res.json({ items: [], raw: txt }); }
-  } catch(e) { res.status(500).json({ error: e.message }); }
+    let txt=await callAI([{role:'user',content:`Analyze:\n${(reportText||'').slice(0,4000)}`}],sysPrompt,1500);
+    txt=txt.trim().replace(/```json|```/g,'').trim();
+    try{res.json({items:JSON.parse(txt)});}catch(e){res.json({items:[],raw:txt});}
+  } catch(e){res.status(500).json({error:e.message});}
 });
 
 // ── CHAT HISTORY ──────────────────────────────────────────
 app.get('/chat-history', verifyToken, (req, res) => {
   db.query('SELECT role,content,created_at FROM health_chat_history WHERE user_id=? ORDER BY created_at DESC LIMIT 20',
-    [req.user.id], (err,r) => err ? res.status(500).json({ error:err.message }) : res.json({ history:r }));
+    [req.user.id],(err,r)=>err?res.status(500).json({error:err.message}):res.json({history:r}));
 });
 
-app.get('/config/chatbase', (req, res) => res.json({ botId: process.env.CHATBASE_BOT_ID || '' }));
+app.get('/config/chatbase', (req, res) => res.json({ botId: process.env.CHATBASE_BOT_ID||'' }));
 
 // ── START ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
