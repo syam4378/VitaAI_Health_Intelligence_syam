@@ -1,19 +1,15 @@
-"""
-VitaAI Voice Agent — http://localhost:6000
-Uses: Deepgram (STT) + Groq (AI) + VoiceRSS (TTS)
-"""
-import os, re, time, requests
-from flask import Flask, request, jsonify
+import os, re, requests
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
 from urllib.parse import quote
 
 load_dotenv()
 
-DEEPGRAM_API_KEY  = os.getenv("DEEPGRAM_API_KEY")
-GROQ_API_KEY      = os.getenv("GROQ_API_KEY")
-OPENROUTER_KEY    = os.getenv("OPENROUTER_API_KEY")
-VOICERSS_API_KEY = os.getenv("VOICERSS_API_KEY")
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+GROQ_API_KEY     = os.getenv("GROQ_API_KEY")
+OPENROUTER_KEY   = os.getenv("OPENROUTER_API_KEY")
+VOICERSS_API_KEY = os.getenv("VOICERSS_API_KEY", "1db34ecce956422babc3cf78814c1ede")
 
 SYSTEM_PROMPT = """You are SyamHealth AI, a personal health coach and assistant.
 Reply in 1-2 short sentences only. No bullet points, no symbols, no markdown.
@@ -71,7 +67,6 @@ def ask_ai(user_text: str) -> str:
                 reply = data["choices"][0]["message"]["content"]
                 reply = re.sub(r'[\*\#\_\`]', '', reply)
                 return re.sub(r'\s+', ' ', reply).strip()
-            print(f"Groq error: {data.get('error', {}).get('message', str(data))}")
         except Exception as e:
             print(f"Groq failed: {e}")
 
@@ -89,49 +84,45 @@ def ask_ai(user_text: str) -> str:
             reply = re.sub(r'[\*\#\_\`]', '', reply)
             return re.sub(r'\s+', ' ', reply).strip()
 
-    return "I'm having trouble connecting right now. Please try again in a moment."
+    return "I'm having trouble connecting right now. Please try again."
 
 
 def text_to_speech(text: str) -> bytes:
-    """Convert text to WAV bytes using VoiceRSS TTS API."""
     r = requests.post(
         "https://api.voicerss.org/",
         data={
             "key": VOICERSS_API_KEY,
             "src": text,
             "hl":  "en-us",
-            "v":   "Linda",       # voice: Linda, Amy, Mary, Mike, etc.
-            "c":   "WAV",         # audio codec
+            "v":   "Linda",
+            "c":   "WAV",
             "f":   "16khz_16bit_mono",
-            "r":   "0",           # speed: -10 (slow) to 10 (fast)
+            "r":   "0",
         },
         timeout=15,
     )
-
-    # VoiceRSS returns an error as plain text starting with "ERROR"
-    if r.content[:5] == b"ERROR" or r.headers.get("Content-Type", "").startswith("text"):
-        raise Exception(f"VoiceRSS TTS error: {r.text.strip()}")
-
-    return r.content   # raw WAV bytes
+    if r.content[:5] == b"ERROR" or "text" in r.headers.get("Content-Type", ""):
+        raise Exception(f"VoiceRSS error: {r.text.strip()}")
+    return r.content
 
 
 @app.route("/voice/chat", methods=["POST"])
 def chat():
     audio_bytes = request.data
-    print(f"📦 Received {len(audio_bytes)} bytes, Content-Type: {request.content_type}")
+    print(f"Received {len(audio_bytes)} bytes")
 
     if not audio_bytes or len(audio_bytes) < 500:
-        return jsonify({"error": "Audio too short. Hold the button longer and speak clearly."}), 400
+        return jsonify({"error": "Audio too short."}), 400
 
     try:
         user_text = transcribe(audio_bytes)
-        print(f"👤 User: '{user_text}'")
+        print(f"User: '{user_text}'")
 
         if not user_text:
-            return jsonify({"error": "No speech detected. Speak clearly and try again."}), 400
+            return jsonify({"error": "No speech detected."}), 400
 
         reply = ask_ai(user_text)
-        print(f"🤖 Agent: {reply}")
+        print(f"Agent: {reply}")
 
         chat_history.append({"role": "user",      "content": user_text})
         chat_history.append({"role": "assistant", "content": reply})
@@ -140,41 +131,48 @@ def chat():
 
         wav_data = text_to_speech(reply)
 
-        response = app.response_class(wav_data, mimetype="audio/wav")
-        response.headers["Cache-Control"] = "no-cache"
-        response.headers["X-User-Text"]   = quote(user_text)
-        response.headers["X-Agent-Text"]  = quote(reply)
+        # KEY FIX: use Response with explicit headers, no range support needed
+        response = Response(
+            wav_data,
+            status=200,
+            mimetype="audio/wav"
+        )
+        response.headers["Content-Length"]  = str(len(wav_data))
+        response.headers["Cache-Control"]   = "no-cache, no-store"
+        response.headers["Accept-Ranges"]   = "none"   # FIX: disables range requests
+        response.headers["X-User-Text"]     = quote(user_text)
+        response.headers["X-Agent-Text"]    = quote(reply)
         response.headers["Access-Control-Expose-Headers"] = "X-User-Text, X-Agent-Text"
         return response
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status":      "ok",
-        "groq":        bool(GROQ_API_KEY),
-        "openrouter":  bool(OPENROUTER_KEY),
-        "deepgram":    bool(DEEPGRAM_API_KEY),
-        "voicerss":    bool(VOICERSS_API_KEY),
+        "status":    "ok",
+        "groq":      bool(GROQ_API_KEY),
+        "openrouter":bool(OPENROUTER_KEY),
+        "deepgram":  bool(DEEPGRAM_API_KEY),
+        "voicerss":  bool(VOICERSS_API_KEY),
     })
 
 
+@app.route("/", methods=["GET"])
+def index():
+    return jsonify({"status": "VitaAI Voice Agent running"})
+
+
 if __name__ == "__main__":
-    import os
-
     port = int(os.environ.get("PORT", 6000))
-
-    print("=" * 52)
-    print(f"  🎙️ VitaAI Voice Agent running on port {port}")
-    print(f"  Groq:       {'✅' if GROQ_API_KEY else '❌ missing'}")
-    print(f"  OpenRouter: {'✅' if OPENROUTER_KEY else '❌ missing'}")
-    print(f"  Deepgram:   {'✅' if DEEPGRAM_API_KEY else '❌ missing'}")
-    print(f"  VoiceRSS:   {'✅' if VOICERSS_API_KEY else '❌ missing'}")
-    print("=" * 52)
-
+    print("=" * 50)
+    print(f"  VitaAI Voice Agent running on port {port}")
+    print(f"  Groq:       {'✅' if GROQ_API_KEY else '❌'}")
+    print(f"  OpenRouter: {'✅' if OPENROUTER_KEY else '❌'}")
+    print(f"  Deepgram:   {'✅' if DEEPGRAM_API_KEY else '❌'}")
+    print(f"  VoiceRSS:   {'✅' if VOICERSS_API_KEY else '❌'}")
+    print("=" * 50)
     app.run(host="0.0.0.0", port=port, debug=False)
-    
