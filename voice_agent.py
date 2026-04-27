@@ -164,11 +164,17 @@ def health():
 
 
 if __name__ == "__main__":
+    import os
+
+    port = int(os.environ.get("PORT", 6000))
+
     print("=" * 52)
-    print("  🎙️  VitaAI Voice Agent — http://localhost:6000")
-    print(f"  Groq:      {'✅' if GROQ_API_KEY else '❌ missing'}")
-    print(f"  OpenRouter:{'✅' if OPENROUTER_KEY else '❌ missing'}")
-    print(f"  Deepgram:  {'✅' if DEEPGRAM_API_KEY else '❌ missing'}")
-    print(f"  VoiceRSS:  ✅ configured")
+    print(f"  🎙️ VitaAI Voice Agent running on port {port}")
+    print(f"  Groq:       {'✅' if GROQ_API_KEY else '❌ missing'}")
+    print(f"  OpenRouter: {'✅' if OPENROUTER_KEY else '❌ missing'}")
+    print(f"  Deepgram:   {'✅' if DEEPGRAM_API_KEY else '❌ missing'}")
+    print(f"  VoiceRSS:   {'✅' if VOICERSS_API_KEY else '❌ missing'}")
     print("=" * 52)
-    app.run(port=6000, debug=False)
+
+    app.run(host="0.0.0.0", port=port, debug=False)
+    

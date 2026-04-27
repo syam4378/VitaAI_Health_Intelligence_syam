@@ -670,8 +670,10 @@ app.get('/chat-history', verifyToken, (req, res) => {
 
 app.get('/config/chatbase', (req, res) => res.json({ botId: process.env.CHATBASE_BOT_ID || '' }));
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log(`\n🚀 VitaAI Server: http://localhost:${process.env.PORT || 3000}`);
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`\n🚀 VitaAI Server running on port ${PORT}`);
   console.log(`   Groq AI: ${process.env.GROQ_API_KEY ? '✅' : '❌ missing'}`);
   console.log(`   OpenRouter: ${process.env.OPENROUTER_API_KEY ? '✅' : '❌ missing'}\n`);
 });

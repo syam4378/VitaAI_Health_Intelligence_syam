@@ -246,7 +246,13 @@ def face_emotion():
 
 
 if __name__ == "__main__":
+    import os
+
+    port = int(os.environ.get("PORT", 5000))
+
     print("=" * 45)
-    print("  Face Auth Server — http://localhost:5000")
+    print(f"  Face Auth Server — running on port {port}")
     print("=" * 45)
-    app.run(port=5000, debug=True, use_reloader=False)
+
+    app.run(host="0.0.0.0", port=port, debug=False)
+    
