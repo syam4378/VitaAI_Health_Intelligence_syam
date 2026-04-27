@@ -1,4 +1,6 @@
 require('dotenv').config();
+const FACE_URL  = process.env.FACE_SERVER_URL  || 'http://localhost:5000';
+const VOICE_URL = process.env.VOICE_SERVER_URL || 'http://localhost:6000';
 const express = require('express');
 const mysql   = require('mysql2');
 const bcrypt  = require('bcrypt');
@@ -189,7 +191,8 @@ function callPython(route, body) {
   return new Promise((rv, rj) => {
     const data = JSON.stringify(body);
     const req  = http.request({
-      hostname: 'localhost', port: 5000, path: route, method: 'POST',
+      hostname: new URL(FACE_URL).hostname,
+      port: new URL(FACE_URL).port || 80, path: route, method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
     }, res => {
       let raw = '';
@@ -229,7 +232,8 @@ app.post('/voice/chat', verifyToken, (req, res) => {
   req.on('end', () => {
     const audio = Buffer.concat(chunks);
     const pr = http.request({
-      hostname: 'localhost', port: 6000, path: '/voice/chat', method: 'POST',
+      hostname: new URL(VOICE_URL).hostname,
+      port: new URL(VOICE_URL).port || 80, path: '/voice/chat', method: 'POST',
       headers: { 'Content-Type': req.headers['content-type'] || 'audio/webm', 'Content-Length': audio.length }
     }, proxyRes => {
       res.set({
