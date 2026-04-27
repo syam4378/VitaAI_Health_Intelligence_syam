@@ -202,7 +202,7 @@ async function captureAndRegister() {
   document.getElementById('captureBtn').disabled = true;
   showMsg('msg2', '🔍 Detecting face…', 'info');
   try {
-    const fr = await fetch('/face/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, img }) });
+    const fr = await fetch('https://vitaai-face-latest.onrender.com/face/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, img }) });
     const fd = await fr.json();
     if (!fd.ok) {
       showMsg('msg2', '❌ ' + fd.msg + ' — You can still Skip and create account without face login.', 'error');
@@ -227,7 +227,7 @@ async function createAccount(successNote) {
   const email    = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   try {
-    const sr = await fetch('/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, password }) });
+    const sr = await fetch('https://vitaai-server.onrender.com/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, password }) });
     const sd = await sr.json();
     if (sd.message === 'Signup successful') {
       if (stream) stream.getTracks().forEach(t => t.stop());

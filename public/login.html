@@ -117,11 +117,11 @@ async function faceLogin(){
   canvas.getContext('2d').drawImage(video,0,0);
   showMsg('faceMsg','🔍 Scanning face…','info');
   try{
-    const fr=await fetch('/face/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,img:canvas.toDataURL('image/jpeg')})});
+    const fr=await fetch('https://vitaai-face-latest.onrender.com/face/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,img:canvas.toDataURL('image/jpeg')})});
     const fd=await fr.json();
     if(!fd.ok){showMsg('faceMsg','❌ '+fd.msg,'error');return;}
     showMsg('faceMsg','✅ Face matched! Logging in…','success');
-    const lr=await fetch('/face-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const lr=await fetch('https://vitaai-face-latest.onrender.com/face-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
     const ld=await lr.json();
     if(ld.token){localStorage.setItem('token',ld.token);if(stream)stream.getTracks().forEach(t=>t.stop());window.location.href='home.html';}
     else showMsg('faceMsg','❌ '+ld.message,'error');

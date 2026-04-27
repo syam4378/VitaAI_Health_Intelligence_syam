@@ -7,19 +7,25 @@ from PIL import Image
 from io import BytesIO
 
 app = Flask(__name__)
-@app.route("/", methods=["GET", "HEAD"])
-def index():
-    return jsonify({"status": "VitaAI Face Server running"}), 200
-CORS(app)
-DB       = "faces.pkl"
+CORS(app)  # ← MUST be right after app, before all routes
+
+# ── PERSISTENT STORAGE — survives Render redeploys ────────
+# On Render: add a Disk with mount path /data
+# Locally: saves in current folder
+DATA_DIR = "/data" if os.path.exists("/data") else "."
+DB = os.path.join(DATA_DIR, "faces.pkl")
+
 detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
 print("Loading Facenet model...")
 DeepFace.build_model("Facenet")
 print("✅ Model ready! Server starting...")
 
-def load(): return pickle.load(open(DB,"rb")) if os.path.exists(DB) else {}
-def save(d): pickle.dump(d, open(DB,"wb"))
+def load():
+    return pickle.load(open(DB, "rb")) if os.path.exists(DB) else {}
+
+def save(d):
+    pickle.dump(d, open(DB, "wb"))
 
 def b64_to_array(b64):
     data = base64.b64decode(b64.split(",")[1])
@@ -37,10 +43,10 @@ def detect_and_crop_face(img_array):
         faces = detector.detectMultiScale(gray, scaleFactor=scale, minNeighbors=neighbors, minSize=min_size)
         if len(faces) > 0:
             face_rect = max(faces, key=lambda f: f[2] * f[3])
-            print(f"  ✅ Face detected size {face_rect[2]}x{face_rect[3]} px")
+            print(f"  ✅ Face detected {face_rect[2]}x{face_rect[3]} px")
             break
     if face_rect is None:
-        print("  ⚠️  No face detected")
+        print("  ⚠️ No face detected")
         return None
     x, y, w, h = face_rect
     pad_x = int(w * 0.20); pad_y = int(h * 0.20)
@@ -70,7 +76,7 @@ def get_embedding(img_path):
         )
         return np.array(result[0]["embedding"])
     except Exception as e:
-        print(f"  ⚠️  Embedding error: {e}")
+        print(f"  ⚠️ Embedding error: {e}")
         return None
 
 def cosine_distance(a, b):
@@ -81,24 +87,8 @@ def to_float(val):
         return round(float(val.item()), 4)
     return round(float(val), 4)
 
-# ── SMART EMOTION DETECTION ───────────────────────────────────────────────────
-# Based on YOUR real webcam data from the logs:
-#
-#   Resting face (normal):   neutral=99%, happy=0.01-0.14%  → should be neutral
-#   Smiling:                 happy=91-99%, neutral=0-8%      → should be happy
-#   Slightly sad face:       sad=7.59%, neutral=91%          → should be sad
-#   Slight smile:            happy=0.74%, neutral=91%        → borderline
-#
-# The key insight: when you're TRULY expressing an emotion,
-# that emotion will jump to 5%+ even on webcam.
-# A resting face shows all non-neutral emotions at <1%.
-#
-# Strategy: compare each emotion relative to "neutral dominance"
-# If neutral < 95% AND another emotion has meaningful score → use it
-# ─────────────────────────────────────────────────────────────────────────────
 def smart_emotion(emotions_raw: dict) -> str:
     e = {k: to_float(v) for k, v in emotions_raw.items()}
-
     neutral  = e.get('neutral',  100.0)
     happy    = e.get('happy',    0.0)
     sad      = e.get('sad',      0.0)
@@ -109,47 +99,42 @@ def smart_emotion(emotions_raw: dict) -> str:
 
     print(f"  📊 happy={happy}% sad={sad}% angry={angry}% fear={fear}% surprise={surprise}% neutral={neutral}%")
 
-    # ── Rule 1: Clear strong emotion (>30%) → always pick it ──────────────────
-    # From logs: real smile = happy=91-99%, angry expression = angry=16%+
-    if happy >= 30.0:    return 'happy'
-    if sad >= 30.0:      return 'sad'
-    if angry >= 30.0:    return 'angry'
-    if fear >= 30.0:     return 'fear'
+    # Strong emotion > 30% → always pick it
+    if happy    >= 30.0: return 'happy'
+    if sad      >= 30.0: return 'sad'
+    if angry    >= 30.0: return 'angry'
+    if fear     >= 30.0: return 'fear'
     if surprise >= 30.0: return 'surprise'
 
-    # ── Rule 2: Moderate emotion (5-30%) with neutral < 95% ──────────────────
-    # From logs: sad=7.59%, neutral=91% → correctly sad
-    # From logs: happy=0.74%, neutral=91% → this is actually just neutral (resting)
+    # Moderate emotion 5-30% with neutral < 95%
     if neutral < 95.0:
-        if sad >= 5.0:      return 'sad'
-        if happy >= 5.0:    return 'happy'
-        if angry >= 5.0:    return 'angry'
-        if fear >= 5.0:     return 'fear'
+        if sad      >= 5.0: return 'sad'
+        if happy    >= 5.0: return 'happy'
+        if angry    >= 5.0: return 'angry'
+        if fear     >= 5.0: return 'fear'
         if surprise >= 5.0: return 'surprise'
-        if disgust >= 1.0:  return 'disgust'
+        if disgust  >= 1.0: return 'disgust'
 
-    # ── Rule 3: Very dominant non-neutral (even if neutral is high) ───────────
-    # From logs: happy=0.74% → NOT happy (resting face)
-    # Only trigger if the emotion is notably above ALL others combined
+    # Subtle dominant emotion
     non_neutral = {'happy': happy, 'sad': sad, 'angry': angry,
                    'fear': fear, 'surprise': surprise, 'disgust': disgust}
     top_emotion = max(non_neutral, key=lambda k: non_neutral[k])
     top_score   = non_neutral[top_emotion]
-
-    # Sum of all other non-neutral emotions
-    others_sum = sum(v for k, v in non_neutral.items() if k != top_emotion)
-
-    # If top emotion is more than 3x all other emotions combined AND > 2%
-    # it's likely a real (subtle) expression
+    others_sum  = sum(v for k, v in non_neutral.items() if k != top_emotion)
     if top_score >= 2.0 and top_score > (others_sum * 3):
-        print(f"  → Dominant subtle: {top_emotion} ({top_score}% vs others {others_sum:.2f}%)")
+        print(f"  → Subtle: {top_emotion} ({top_score}%)")
         return top_emotion
 
-    # ── Default: neutral ───────────────────────────────────────────────────────
     return 'neutral'
 
 
-# ── Register face ─────────────────────────────────────────────────────────────
+# ── ROUTES ────────────────────────────────────────────────
+
+@app.route("/", methods=["GET", "HEAD"])
+def index():
+    return jsonify({"status": "VitaAI Face Server running", "db": DB}), 200
+
+
 @app.route("/face/register", methods=["POST"])
 def face_register():
     d     = request.json
@@ -164,19 +149,21 @@ def face_register():
         embedding = get_embedding(tmp)
         if embedding is None:
             return jsonify({"ok": False, "msg": "Could not process face. Please try again."})
-        db = load(); db[email] = embedding; save(db)
-        print(f"  ✅ Face registered for {email}")
+        db = load()
+        db[email] = embedding
+        save(db)
+        print(f"  ✅ Registered: {email} | Total faces: {len(db)}")
         return jsonify({"ok": True, "msg": "Face registered!"})
     finally:
         if os.path.exists(tmp): os.unlink(tmp)
 
-# ── Verify face ───────────────────────────────────────────────────────────────
+
 @app.route("/face/verify", methods=["POST"])
 def face_verify():
     d     = request.json
     email = d.get("email", "unknown")
     db    = load()
-    print(f"\n🔍 VERIFY: {email}")
+    print(f"\n🔍 VERIFY: {email} | Registered: {list(db.keys())}")
     if email not in db:
         return jsonify({"ok": False, "msg": "Face not registered. Please signup first."})
     img_array = b64_to_array(d["img"])
@@ -190,40 +177,33 @@ def face_verify():
             return jsonify({"ok": False, "msg": "Could not process face. Please try again."})
         dist = cosine_distance(db[email], embedding)
         ok   = dist < 0.6
-        print(f"  📊 Distance: {dist:.4f} | {'✅ PASS' if ok else '❌ FAIL'}")
-        return jsonify({"ok": bool(ok), "msg": "Face verified!" if ok else "Face not matched. Please try again."})
+        print(f"  Distance: {dist:.4f} | {'✅ PASS' if ok else '❌ FAIL'}")
+        return jsonify({"ok": bool(ok), "msg": "Face verified!" if ok else "Face not matched. Try again."})
     finally:
         if os.path.exists(tmp): os.unlink(tmp)
 
-# ── Detect emotion ────────────────────────────────────────────────────────────
+
 @app.route("/face/emotion", methods=["POST"])
 def face_emotion():
-    d = request.json
     print(f"\n😊 EMOTION DETECT")
     try:
+        d         = request.json
         img_array = b64_to_array(d["img"])
         face      = detect_and_crop_face(img_array)
         if face is None:
             return jsonify({"ok": False, "emotion": "neutral", "msg": "No face detected. Move closer."})
-
         tmp = save_temp(face)
         try:
             result = DeepFace.analyze(
-                img_path=tmp,
-                actions=["emotion"],
-                enforce_detection=False,
-                detector_backend="skip",
-                silent=True
+                img_path=tmp, actions=["emotion"],
+                enforce_detection=False, detector_backend="skip", silent=True
             )
             if isinstance(result, list):
                 result = result[0]
-
             emotions_raw   = result.get("emotion", {})
             emotions_clean = {k: to_float(v) for k, v in emotions_raw.items()}
             emotion        = smart_emotion(emotions_raw)
-
-            print(f"  🏆 Final: {emotion}")
-
+            print(f"  🏆 Final emotion: {emotion}")
             return jsonify({
                 "ok":      True,
                 "emotion": emotion,
@@ -242,20 +222,15 @@ def face_emotion():
             return jsonify({"ok": False, "emotion": "neutral", "msg": str(e)})
         finally:
             if os.path.exists(tmp): os.unlink(tmp)
-
     except Exception as e:
         print(f"  ⚠️ Error: {e}")
         return jsonify({"ok": False, "emotion": "neutral", "msg": str(e)})
 
 
 if __name__ == "__main__":
-    import os
-
     port = int(os.environ.get("PORT", 5000))
-
     print("=" * 45)
-    print(f"  Face Auth Server — running on port {port}")
+    print(f"  Face Auth Server — port {port}")
+    print(f"  DB path: {DB}")
     print("=" * 45)
-
     app.run(host="0.0.0.0", port=port, debug=False)
-    
