@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir \
     deepface==0.0.75
 
 COPY Face_server.py .
-COPY faces.pkl .
+
 
 EXPOSE 5000
 CMD ["python", "Face_server.py"]
