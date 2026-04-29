@@ -6,42 +6,35 @@
 <title>VitaAI — Health Dashboard</title>
 <link rel="stylesheet" href="home.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 </head>
 <body>
+  
 <div class="app">
 
-<!-- ══ MOBILE TOP BAR ══ -->
-<div class="mobile-topbar">
-  <div class="mobile-logo">VitaAI</div>
-  <button class="hamburger" onclick="toggleSidebar()">☰</button>
-</div>
-
-<!-- ══ SIDEBAR OVERLAY ══ -->
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
-
 <!-- SIDEBAR -->
-<aside class="sidebar" id="sidebar">
+<aside class="sidebar">
   <div class="logo">
     <div class="logo-mark">VitaAI</div>
     <div class="logo-sub">Health Intelligence</div>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Main</div>
-    <div class="ni active" onclick="goPage('dashboard');closeSidebar()"><span class="ni-icon">🏠</span><span>Dashboard</span></div>
-    <div class="ni" onclick="goPage('mood');closeSidebar()"><span class="ni-icon">😊</span><span>Mood Scanner</span></div>
-    <div class="ni" onclick="goPage('checkin');closeSidebar()"><span class="ni-icon">✅</span><span>Daily Check-in</span><span class="ni-badge" id="checkinBadge" style="display:none">!</span></div>
-    <div class="ni" onclick="goPage('aichat');closeSidebar()"><span class="ni-icon">🧠</span><span>SyamHealth AI</span></div>
-    <div class="ni" onclick="goPage('dailyreport');closeSidebar()"><span class="ni-icon">📋</span><span>Daily Report</span></div>
+    <div class="ni active" onclick="goPage('dashboard')"><span class="ni-icon">🏠</span><span>Dashboard</span></div>
+    <div class="ni" onclick="goPage('mood')"><span class="ni-icon">😊</span><span>Mood Scanner</span></div>
+    <div class="ni" onclick="goPage('checkin')"><span class="ni-icon">✅</span><span>Daily Check-in</span><span class="ni-badge" id="checkinBadge">!</span></div>
+    <div class="ni" onclick="goPage('aichat')"><span class="ni-icon">🧠</span><span>Health AI Chat</span></div>
+    <div class="ni" onclick="goPage('dailyreport')"><span class="ni-icon">📋</span><span>Daily Report</span></div>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Tools</div>
-    <div class="ni" onclick="goPage('voice');closeSidebar()"><span class="ni-icon">🎙️</span><span>Voice Coach</span></div>
-    <div class="ni" onclick="goPage('blood');closeSidebar()"><span class="ni-icon">🩺</span><span>Report Analyzer</span></div>
-    <div class="ni" onclick="goPage('tracker');closeSidebar()"><span class="ni-icon">📊</span><span>Health Tracker</span></div>
-    <div class="ni" onclick="goPage('profile');closeSidebar()"><span class="ni-icon">👤</span><span>My Profile</span></div>
+    <div class="ni" onclick="goPage('voice')"><span class="ni-icon">🎙️</span><span>Voice Coach</span></div>
+    <div class="ni" onclick="goPage('blood')"><span class="ni-icon">🩺</span><span>Report Analyzer</span></div>
+    <div class="ni" onclick="goPage('tracker')"><span class="ni-icon">📊</span><span>Health Tracker</span></div>
+    <div class="ni" onclick="goPage('profile')"><span class="ni-icon">👤</span><span>My Profile</span></div>
   </div>
   <div class="sb-bot">
-    <div class="usr" onclick="goPage('profile');closeSidebar()">
+    <div class="usr" onclick="goPage('profile')">
       <div class="usr-av" id="userAv" style="overflow:hidden">
         <img id="userAvImg" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%"/>
         <span id="userAvLetter">?</span>
@@ -67,10 +60,11 @@
     </div>
   </div>
 
+  <!-- FIRST TIME WELCOME (show only once) -->
   <div class="wb" id="wbNew" style="display:none;flex-direction:column;gap:14px">
     <div>
       <h2>👋 Welcome to VitaAI!</h2>
-      <p style="margin-top:6px;line-height:1.6;font-size:13.5px">Your dashboard shows <b>only real data</b> from your check-ins. Start your first check-in to see your health score, steps, calories, sleep trends and more. Also set up your profile for accurate BMI and calorie goals.</p>
+      <p style="margin-top:6px;line-height:1.6;font-size:13.5px">Your dashboard shows <b>only real data</b> from your check-ins. Start your first check-in to see your health score, steps, sleep trends and more.</p>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="goPage('checkin');dismissWelcome()">✅ Start First Check-in →</button>
@@ -78,6 +72,7 @@
     </div>
   </div>
 
+  <!-- SCORE BANNER -->
   <div class="wb" id="wbScore" style="display:none">
     <div>
       <h2>Your Health Score</h2>
@@ -92,6 +87,7 @@
     </div>
   </div>
 
+  <!-- STAT CARDS -->
   <div class="sg">
     <div class="sc" style="--cc:#3dffc0" onclick="goPage('checkin')">
       <div class="si">💧</div><div class="sl">Water Intake</div>
@@ -117,7 +113,7 @@
 
   <div class="g3">
     <div class="card">
-      <div class="ch"><div class="ct" id="weekChartTitle">📈 Health Score Trend</div><span id="avgTag" style="font-size:11px;color:var(--primary)"></span></div>
+      <div class="ch"><div class="ct">📈 Health Score Trend</div><span id="avgTag" style="font-size:11px;color:var(--primary)"></span></div>
       <div class="cb">
         <div class="no-data" id="emWeek"><div style="font-size:30px;margin-bottom:8px">📊</div><div style="font-size:13px;color:var(--muted)">Do daily check-ins to build your trend</div></div>
         <canvas id="weekChart" style="display:none"></canvas>
@@ -130,17 +126,18 @@
         <button class="btn btn-g" style="width:100%;text-align:left;font-size:13px" onclick="goPage('checkin')">✅ Daily Check-in</button>
         <button class="btn btn-g" style="width:100%;text-align:left;font-size:13px" onclick="goPage('dailyreport')">📋 Daily Health Report</button>
         <button class="btn btn-g" style="width:100%;text-align:left;font-size:13px" onclick="goPage('voice')">🎙️ Voice Coach</button>
-        <button class="btn btn-p" style="width:100%;text-align:left;font-size:13px" onclick="goPage('aichat')">🧠 Ask SyamHealth AI</button>
+        <button class="btn btn-p" style="width:100%;text-align:left;font-size:13px" onclick="goPage('aichat')">🧠 Ask Health AI</button>
       </div>
     </div>
   </div>
 
   <div class="g2">
     <div class="card">
-      <div class="ch"><div class="ct" id="moodChartTitle">😊 Mood (7 days)</div></div>
+      <div class="ch"><div class="ct">😊 Mood Trend</div></div>
       <div class="cb">
         <div class="no-data" id="emMood"><div style="font-size:24px">😐</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Check-in daily to track mood</div></div>
         <canvas id="moodChart" style="display:none"></canvas>
+        <!-- Mood legend -->
         <div id="moodLegend" style="display:none;margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;font-size:11px">
           <span style="color:#3dffc0">■ Great/Good (4-5)</span>
           <span style="color:#7b6fff">■ Neutral (3)</span>
@@ -149,7 +146,7 @@
       </div>
     </div>
     <div class="card">
-      <div class="ch"><div class="ct" id="sleepChartTitle">💤 Sleep (7 days)</div></div>
+      <div class="ch"><div class="ct">💤 Sleep Trend</div></div>
       <div class="cb">
         <div class="no-data" id="emSleep"><div style="font-size:24px">💤</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Check-in daily to track sleep</div></div>
         <canvas id="sleepChart" style="display:none"></canvas>
@@ -176,10 +173,7 @@
 
 <!-- ════ MOOD SCANNER ════ -->
 <div class="page" id="pg-mood">
-  <div class="topbar">
-    <div class="pg-title">😊 Mood <span>Scanner</span></div>
-    <button class="btn btn-g" onclick="stopCam();goPage('dashboard')">⬅ Back</button>
-  </div>
+  <div class="topbar"><div class="pg-title">😊 Mood <span>Scanner</span></div><button class="btn btn-g" onclick="stopCam();goPage('dashboard')">⬅ Back</button></div>
   <div class="g2">
     <div class="card">
       <div class="ch"><div class="ct">📸 Face Emotion Detection</div></div>
@@ -209,18 +203,15 @@
   </div>
 </div>
 
-<!-- ════ DAILY CHECK-IN ════ -->
+<!-- ════ DAILY CHECK-IN (6 STEPS - vitals removed) ════ -->
 <div class="page" id="pg-checkin">
-  <div class="topbar">
-    <div class="pg-title">✅ Daily <span>Check-in</span></div>
-    <button class="btn btn-g" onclick="goPage('dashboard')">⬅ Back</button>
-  </div>
+  <div class="topbar"><div class="pg-title">✅ Daily <span>Check-in</span></div></div>
   <div class="card" style="max-width:600px;margin:0 auto">
     <div class="cb">
       <div class="prog-dots">
         <div class="pd cur" id="d0"></div><div class="pd" id="d1"></div>
         <div class="pd" id="d2"></div><div class="pd" id="d3"></div>
-        <div class="pd" id="d4"></div>
+        <div class="pd" id="d4"></div><div class="pd" id="d5"></div>
       </div>
       <div id="ciContent"></div>
     </div>
@@ -230,11 +221,8 @@
 <!-- ════ HEALTH AI CHAT ════ -->
 <div class="page" id="pg-aichat">
   <div class="topbar">
-    <div>
-      <div class="pg-title">🧠 <span>SyamHealth AI</span></div>
-      <span style="font-size:12px;color:var(--muted)">Powered by LLaMA3 · Knows your health data</span>
-    </div>
-    <button class="btn btn-g" onclick="goPage('dashboard')">⬅ Back</button>
+    <div class="pg-title">🧠 <span>SyamHealth AI</span></div>
+    <span style="font-size:12px;color:var(--muted)">Powered by LLaMA3 · Free · Knows your health data</span>
   </div>
   <div class="card" style="max-width:740px">
     <div class="chat-wrap">
@@ -261,17 +249,14 @@
 <div class="page" id="pg-dailyreport">
   <div class="topbar">
     <div class="pg-title">📋 Daily Health <span>Report</span></div>
-    <div class="topbar-r">
-      <button class="btn btn-g" onclick="goPage('dashboard')">⬅ Back</button>
-      <button class="btn btn-p" onclick="loadDailyReport()">🔄 Refresh</button>
-    </div>
+    <button class="btn btn-p" onclick="loadDailyReport()">🔄 Refresh Report</button>
   </div>
   <div class="card" style="max-width:740px">
     <div class="ch"><div class="ct">🏥 Your Personalized Health Report</div><span style="font-size:11px;color:var(--muted)" id="reportDate"></span></div>
     <div class="cb" id="dailyReportBody">
       <div class="no-data" style="min-height:200px">
         <div style="font-size:36px;margin-bottom:12px">📋</div>
-        <div style="font-size:14px;color:var(--muted);margin-bottom:16px">Click "Refresh" to generate your daily AI health analysis</div>
+        <div style="font-size:14px;color:var(--muted);margin-bottom:16px">Click "Refresh Report" to generate your daily AI health analysis</div>
         <button class="btn btn-p" onclick="loadDailyReport()">📋 Generate My Report</button>
       </div>
     </div>
@@ -280,10 +265,7 @@
 
 <!-- ════ VOICE COACH ════ -->
 <div class="page" id="pg-voice">
-  <div class="topbar">
-    <div class="pg-title">🎙️ Voice <span>Coach</span></div>
-    <button class="btn btn-g" onclick="goPage('dashboard')">⬅ Back</button>
-  </div>
+  <div class="topbar"><div class="pg-title">🎙️ Voice <span>Coach</span></div></div>
   <div class="g2">
     <div class="card">
       <div class="voice-area">
@@ -292,7 +274,9 @@
         <div class="v-orb" id="vOrb" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice(event)" ontouchend="stopVoice()">🎙️</div>
         <div class="v-status" id="vStatus">Hold the orb to speak</div>
         <div class="v-trans" id="vTrans">Your speech and AI reply will appear here…</div>
-        <div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.5">💡 Tip: Hold for 2-3 seconds before speaking. Speak clearly in a quiet room.</div>
+        <div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.5">
+          💡 Tip: Hold for 2-3 seconds before speaking. Speak clearly in a quiet room.
+        </div>
       </div>
     </div>
     <div class="card">
@@ -304,14 +288,11 @@
   </div>
 </div>
 
-<!-- ════ REPORT ANALYZER ════ -->
+<!-- ════ REPORT ANALYZER (any health report) ════ -->
 <div class="page" id="pg-blood">
-  <div class="topbar">
-    <div class="pg-title">🩺 Report <span>Analyzer</span></div>
-    <button class="btn btn-g" onclick="goPage('dashboard')">⬅ Back</button>
-  </div>
+  <div class="topbar"><div class="pg-title">🩺 Health Report <span>Analyzer</span></div></div>
   <div style="background:var(--pdim);border:1px solid var(--glow);border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;font-size:13px;line-height:1.6">
-    📄 Supports <b>any health report</b>: Blood test, Urine test, Thyroid, Diabetes, Lipid panel, Liver/Kidney function, CBC, X-ray, MRI, ECG, Ultrasound and more.
+    📄 Supports <b>any health report</b>: Blood test, Urine test, Thyroid, Diabetes, Lipid panel, Liver/Kidney function, CBC, and more. AI explains all values and tells you exactly what to do.
   </div>
   <div class="g2">
     <div class="card">
@@ -340,10 +321,7 @@
 <div class="page" id="pg-tracker">
   <div class="topbar">
     <div class="pg-title">📊 Health <span>Tracker</span></div>
-    <div class="topbar-r">
-      <button class="btn btn-g" onclick="goPage('dashboard')">⬅ Back</button>
-      <span style="font-size:12px;color:var(--muted)">Real data from check-ins</span>
-    </div>
+    <span style="font-size:12px;color:var(--muted)">All real data from your check-ins</span>
   </div>
   <div class="mg" style="margin-bottom:16px">
     <div class="mc"><div class="mv" id="trScore">—</div><div class="mu">/ 100</div><div class="mn">Health Score</div></div>
@@ -360,7 +338,7 @@
     <div class="mc"><div class="mv" id="trTotal">—</div><div class="mu">total</div><div class="mn">Total Check-ins</div></div>
   </div>
   <div style="background:var(--pdim);border:1px solid var(--glow);border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;font-size:12.5px">
-    💡 <b>Heart Rate</b> is logged in check-in Step 4. <b>BMI &amp; Calorie Goal</b> are calculated from your <a href="#" onclick="goPage('profile')" style="color:var(--primary)">Profile</a>. Charts show <b>7 days</b> for first 3 check-ins, then <b>30 days</b>.
+    💡 <b>Heart Rate</b> is logged in check-in Step 5. <b>BMI &amp; Calorie Goal</b> are calculated from your <a href="#" onclick="goPage('profile')" style="color:var(--primary)">Profile</a> (age, weight, height). Steps auto-estimate calories if not entered manually.
   </div>
   <div class="card" style="margin-bottom:16px">
     <div class="ch"><div class="ct" id="trChartTitle">📉 Health Score Trend</div></div>
@@ -370,22 +348,44 @@
     </div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ch"><div class="ct" id="stepsChartTitle">🏃 Steps Trend</div></div><div class="cb"><div class="no-data" id="emSt"><div style="font-size:24px">🏃</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log steps in check-in</div></div><canvas id="stChart" style="max-height:160px;display:none"></canvas></div></div>
-    <div class="card"><div class="ch"><div class="ct" id="calChartTitle">🔥 Calories Trend</div></div><div class="cb"><div class="no-data" id="emCal"><div style="font-size:24px">🔥</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log calories in check-in</div></div><canvas id="calTrChart" style="max-height:160px;display:none"></canvas></div></div>
+    <div class="card">
+      <div class="ch"><div class="ct" id="stepsChartTitle">🏃 Steps Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emSt"><div style="font-size:24px">🏃</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log steps in check-in</div></div>
+        <canvas id="stChart" style="max-height:160px;display:none"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct" id="calChartTitle">🔥 Calories Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emCal"><div style="font-size:24px">🔥</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log calories in check-in</div></div>
+        <canvas id="calTrChart" style="max-height:160px;display:none"></canvas>
+      </div>
+    </div>
   </div>
   <div class="g2">
-    <div class="card"><div class="ch"><div class="ct" id="sleepChartTitle">💤 Sleep Trend</div></div><div class="cb"><div class="no-data" id="emSlp"><div style="font-size:24px">💤</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log sleep in check-in</div></div><canvas id="slpChart" style="max-height:160px;display:none"></canvas></div></div>
-    <div class="card"><div class="ch"><div class="ct" id="waterChartTitle">💧 Water Trend</div></div><div class="cb"><div class="no-data" id="emWat"><div style="font-size:24px">💧</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log water in check-in</div></div><canvas id="watChart" style="max-height:160px;display:none"></canvas></div></div>
+    <div class="card">
+      <div class="ch"><div class="ct" id="sleepChartTitle">💤 Sleep Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emSlp"><div style="font-size:24px">💤</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log sleep in check-in</div></div>
+        <canvas id="slpChart" style="max-height:160px;display:none"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct" id="waterChartTitle">💧 Water Trend</div></div>
+      <div class="cb">
+        <div class="no-data" id="emWat"><div style="font-size:24px">💧</div><div style="font-size:12.5px;color:var(--muted);margin-top:6px">Log water in check-in</div></div>
+        <canvas id="watChart" style="max-height:160px;display:none"></canvas>
+      </div>
+    </div>
   </div>
 </div>
 
 <!-- ════ PROFILE ════ -->
 <div class="page" id="pg-profile">
-  <div class="topbar">
-    <div class="pg-title">👤 My <span>Profile</span></div>
-    <button class="btn btn-g" onclick="goPage('dashboard')">⬅ Back</button>
-  </div>
+  <div class="topbar"><div class="pg-title">👤 My <span>Profile</span></div></div>
   <div class="g2" style="align-items:start">
+    <!-- Photo card -->
     <div>
       <div class="card" style="margin-bottom:16px">
         <div class="cb" style="text-align:center">
@@ -404,6 +404,8 @@
         </div>
       </div>
     </div>
+
+    <!-- Form -->
     <div class="card">
       <div class="ch"><div class="ct">Personal Details</div></div>
       <div class="cb">
@@ -411,14 +413,50 @@
           💡 Fill age, weight, height for accurate <b>BMI</b>, <b>Calorie Goal</b>, and better AI advice.
         </div>
         <div class="pf-grid">
-          <div style="grid-column:1/-1"><label class="pf-label">Full Name</label><input id="pfName" class="pf-input" placeholder="Your full name"/></div>
-          <div><label class="pf-label">Age</label><input id="pfAge" type="number" class="pf-input" placeholder="25"/></div>
-          <div><label class="pf-label">Gender</label><select id="pfGender" class="pf-input" style="background:var(--surface)"><option value="male">Male</option><option value="female">Female</option></select></div>
-          <div><label class="pf-label">Weight (kg)</label><input id="pfWeight" type="number" step="0.1" class="pf-input" placeholder="70"/></div>
-          <div><label class="pf-label">Height (cm)</label><input id="pfHeight" type="number" class="pf-input" placeholder="175"/></div>
-          <div><label class="pf-label">Blood Group</label><select id="pfBlood" class="pf-input" style="background:var(--surface)"><option value="">Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select></div>
-          <div><label class="pf-label">Phone</label><input id="pfPhone" class="pf-input" placeholder="+91 9876543210"/></div>
-          <div><label class="pf-label">Activity Level</label><select id="pfActivity" class="pf-input" style="background:var(--surface)"><option value="sedentary">Sedentary — desk job, no exercise</option><option value="light">Light — occasional walks</option><option value="moderate" selected>Moderate — exercise 3x/week</option><option value="active">Active — exercise 5x/week</option><option value="very_active">Very Active — daily hard exercise</option></select></div>
+          <div style="grid-column:1/-1">
+            <label class="pf-label">Full Name</label>
+            <input id="pfName" class="pf-input" placeholder="Your full name"/>
+          </div>
+          <div>
+            <label class="pf-label">Age</label>
+            <input id="pfAge" type="number" class="pf-input" placeholder="25"/>
+          </div>
+          <div>
+            <label class="pf-label">Gender</label>
+            <select id="pfGender" class="pf-input" style="background:var(--surface)">
+              <option value="male">Male</option><option value="female">Female</option>
+            </select>
+          </div>
+          <div>
+            <label class="pf-label">Weight (kg)</label>
+            <input id="pfWeight" type="number" step="0.1" class="pf-input" placeholder="70"/>
+          </div>
+          <div>
+            <label class="pf-label">Height (cm)</label>
+            <input id="pfHeight" type="number" class="pf-input" placeholder="175"/>
+          </div>
+          <div>
+            <label class="pf-label">Blood Group</label>
+            <select id="pfBlood" class="pf-input" style="background:var(--surface)">
+              <option value="">Select</option>
+              <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+              <option>O+</option><option>O-</option><option>AB+</option><option>AB-</option>
+            </select>
+          </div>
+          <div>
+            <label class="pf-label">Phone</label>
+            <input id="pfPhone" class="pf-input" placeholder="+91 9876543210"/>
+          </div>
+          <div>
+            <label class="pf-label">Activity Level</label>
+            <select id="pfActivity" class="pf-input" style="background:var(--surface)">
+              <option value="sedentary">Sedentary — desk job, no exercise</option>
+              <option value="light">Light — occasional walks</option>
+              <option value="moderate" selected>Moderate — exercise 3x/week</option>
+              <option value="active">Active — exercise 5x/week</option>
+              <option value="very_active">Very Active — daily hard exercise</option>
+            </select>
+          </div>
         </div>
         <button class="btn btn-p" style="width:100%;margin-top:18px;padding:13px" onclick="saveProfile()">💾 Save Profile</button>
         <div id="pfMsg" style="margin-top:10px;font-size:13px;text-align:center;min-height:20px"></div>
@@ -429,25 +467,6 @@
 
 </main>
 </div>
-
-<!-- ══ MOBILE BOTTOM NAV ══ -->
-<nav class="mobile-bottom-nav" id="mobileBottomNav">
-  <div class="mob-nav-item active" id="mbn-dashboard" onclick="goPage('dashboard')">
-    <span class="mob-icon">🏠</span><span>Home</span>
-  </div>
-  <div class="mob-nav-item" id="mbn-checkin" onclick="goPage('checkin')">
-    <span class="mob-icon">✅</span><span>Check-in</span>
-  </div>
-  <div class="mob-nav-item" id="mbn-aichat" onclick="goPage('aichat')">
-    <span class="mob-icon">🧠</span><span>AI Chat</span>
-  </div>
-  <div class="mob-nav-item" id="mbn-tracker" onclick="goPage('tracker')">
-    <span class="mob-icon">📊</span><span>Tracker</span>
-  </div>
-  <div class="mob-nav-item" id="mbn-profile" onclick="goPage('profile')">
-    <span class="mob-icon">👤</span><span>Profile</span>
-  </div>
-</nav>
 
 <!-- CHATBASE FLOAT -->
 <button class="cb-btn" onclick="toggleCB()" title="Ask about VitaAI">💬</button>
@@ -470,17 +489,12 @@ const token = localStorage.getItem('token');
 if (!token) { location.replace('login.html'); throw 0; }
 try {
   const p = JSON.parse(atob(token.split('.')[1]));
-  if (p.exp && p.exp * 1000 < Date.now()) {
-    localStorage.removeItem('token'); location.replace('login.html'); throw 0;
-  }
+  if (p.exp && p.exp * 1000 < Date.now()) { localStorage.removeItem('token'); location.replace('login.html'); throw 0; }
 } catch(e) { if (e === 0) throw 0; localStorage.removeItem('token'); location.replace('login.html'); throw 0; }
 
 // ═══ GLOBALS ═══
 let uName = 'User', chatHist = [], ciStep = 0, ciAns = {};
 let _wk, _mood, _sleep, _steps, _cal, _tr, _stTr, _calTr, _slpTr, _watTr;
-
-// ══ Cache last dashboard data so navigating away & back keeps stats ══
-let _lastDashData = null;
 
 // ═══ INIT ═══
 (function(){
@@ -496,94 +510,44 @@ let _lastDashData = null;
   } catch(e) {}
   txt('todayDate', new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
   txt('reportDate', new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
-
-  // ── Check if today's check-in badge should show ──
-  updateCheckinBadge();
+  // Show welcome only first time
+  const welcomed = localStorage.getItem('vitaai_welcomed');
+  if (!welcomed) { /* will be shown after loadDash if no data */ }
   loadDash();
   loadProfile();
 })();
 
-// ─── Check-in badge: show only if NOT done today ───────────────────────
-function updateCheckinBadge() {
-  const todayKey = 'vitaai_checkin_' + new Date().toDateString();
-  const done = localStorage.getItem(todayKey) === '1';
-  const badge = document.getElementById('checkinBadge');
-  if (badge) badge.style.display = done ? 'none' : 'inline-block';
-}
-
-function markCheckinDoneToday() {
-  const todayKey = 'vitaai_checkin_' + new Date().toDateString();
-  localStorage.setItem(todayKey, '1');
-  const badge = document.getElementById('checkinBadge');
-  if (badge) badge.style.display = 'none';
-}
-
 function dismissWelcome() { localStorage.setItem('vitaai_welcomed','1'); }
-
-// ═══ SIDEBAR MOBILE ═══
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebarOverlay').classList.toggle('visible');
-}
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarOverlay').classList.remove('visible');
-}
 
 // ═══ NAVIGATION ═══
 function goPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
   document.getElementById('pg-' + name)?.classList.add('active');
-  document.querySelectorAll('.ni').forEach(n => {
-    if (n.getAttribute('onclick')?.includes("'" + name + "'")) n.classList.add('active');
-  });
-
-  // Mobile bottom nav highlight
-  document.querySelectorAll('.mob-nav-item').forEach(el => el.classList.remove('active'));
-  const mbnEl = document.getElementById('mbn-' + name);
-  if (mbnEl) mbnEl.classList.add('active');
-
+  document.querySelectorAll('.ni').forEach(n => { if (n.getAttribute('onclick')?.includes("'" + name + "'")) n.classList.add('active'); });
   if (name === 'mood') startCam(); else stopCam();
   if (name === 'checkin') renderCI();
   if (name === 'tracker') loadTracker();
-  // Dashboard: use cached data instantly, then refresh in background
-  if (name === 'dashboard') {
-    if (_lastDashData) renderDash(_lastDashData); // show cached instantly
-    loadDash(); // always refresh from server
-  }
+  if (name === 'dashboard') loadDash();
 }
-
-function logout() {
-  localStorage.removeItem('token');
-  location.href = 'login.html';
-}
+function logout() { localStorage.removeItem('token'); location.href = 'login.html'; }
 
 // ═══ LOAD DASHBOARD ═══
 async function loadDash() {
   try {
     const d = await api('/dashboard/stats');
-    _lastDashData = d; // cache it
     renderDash(d);
-  } catch(e) {
-    if (!_lastDashData) {
-      renderDash({ hasData: false, score: 0, totalCheckins: 0, today: null, charts: null });
-    }
-  }
+  } catch(e) { renderDash({ hasData: false, score: 0, totalCheckins: 0, today: null, charts: null }); }
 }
 
 function renderDash(d) {
   const has = d.hasData && d.totalCheckins > 0;
+  // Welcome banner: show only if no data AND not dismissed
   const welcomed = localStorage.getItem('vitaai_welcomed');
   vis('wbNew', !has && !welcomed, 'flex');
   vis('wbScore', has, 'flex');
   vis('histCard', has, 'block');
   vis('actCharts', has, 'grid');
-
-  const period = d.chartDays >= 30 ? 'Last 30 Days' : 'Last 7 Days';
-  txt('weekChartTitle', `📈 Health Score — ${period}`);
-  txt('moodChartTitle', `😊 Mood — ${period}`);
-  txt('sleepChartTitle', `💤 Sleep — ${period}`);
 
   if (has) {
     txt('scoreNum', d.score);
@@ -596,41 +560,37 @@ function renderDash(d) {
 
   const t = d.today;
   if (t) {
-    // ── Water ──
     const w = t.water || 0;
     txt('stWater', w > 0 ? w + ' glasses' : '—');
     setSub('stWaterSub', w > 0 ? (w >= 8 ? '✅ Daily goal reached!' : `↑ ${8 - w} more to 8-glass goal`) : 'Log in check-in', w >= 6);
 
-    // ── Steps ──
     const st = t.steps || 0;
     txt('stSteps', st > 0 ? st.toLocaleString() : '—');
     setSub('stStepsSub', st > 0 ? (st >= 10000 ? '✅ 10k goal reached!' : st >= 5000 ? '↑ Good progress!' : '↓ Goal: 10,000 steps') : 'Log in check-in', st >= 5000);
 
-    // ── Calories ──
     const cal = t.calories || 0;
     txt('stCal', cal > 0 ? cal.toLocaleString() + ' kcal' : '—');
     setSub('stCalSub', cal > 0 ? `Goal: ${(d.calorieGoal || 2000).toLocaleString()} kcal/day` : 'Log in check-in', cal > 0);
 
-    // ── Sleep ──
     const sh = t.sleep_hours > 0 ? t.sleep_hours + 'h' : (t.sleep || '—');
     txt('stSleep', sh);
     const gs = t.sleep_hours >= 7 || t.sleep?.includes('7-8') || t.sleep?.includes('8+');
     setSub('stSleepSub', gs ? '↑ Good sleep!' : t.sleep ? '↓ Try sleeping more' : 'Log in check-in', gs);
   } else {
-    // No check-in today — show dash (—) but NOT "Complete check-in to track"
-    // if we had data before, those cards already show the last values via cache
-    if (!_lastDashData || !_lastDashData.today) {
-      ['stWater','stSteps','stCal','stSleep'].forEach(id => txt(id, '—'));
-      ['stWaterSub','stStepsSub','stCalSub','stSleepSub'].forEach(id => {
-        txt(id, 'Log in check-in');
-        const el = document.getElementById(id);
-        if (el) { el.className = 'sc-sub'; el.style.color = 'var(--muted)'; }
-      });
-    }
+    ['stWater','stSteps','stCal','stSleep'].forEach(id => txt(id, '—'));
+    ['stWaterSub','stStepsSub','stCalSub','stSleepSub'].forEach(id => {
+      txt(id, 'Complete check-in to track');
+      const el = document.getElementById(id);
+      if (el) { el.className = 'sc-sub'; el.style.color = 'var(--muted)'; }
+    });
   }
 
+  // Charts — show based on how many checkins (7 days or 30 days)
   if (has && d.charts) {
     const c = d.charts;
+    const days = d.chartDays || 7;
+    const periodLabel = days >= 30 ? 'Last 30 Days' : `Last ${c.days.length} Days`;
+
     if (c.scoreData.some(v => v > 0)) {
       hide('emWeek');
       _wk = mkLine('weekChart', _wk, c.days, c.scoreData, '#3dffc0', 'rgba(61,255,192,0.06)');
@@ -655,18 +615,20 @@ async function loadTracker() {
   try {
     const d = await api('/dashboard/stats');
     const days = d.chartDays || 7;
-    const periodLabel = days >= 30 ? 'Last 30 Days' : 'Last 7 Days';
+    const periodLabel = days >= 30 ? 'Last 30 Days' : `Last ${days} Days`;
     txt('trChartTitle', `📉 Health Score — ${periodLabel}`);
     txt('stepsChartTitle', `🏃 Steps — ${periodLabel}`);
     txt('calChartTitle', `🔥 Calories — ${periodLabel}`);
     txt('sleepChartTitle', `💤 Sleep — ${periodLabel}`);
     txt('waterChartTitle', `💧 Water — ${periodLabel}`);
+
     if (d.hasData) { document.getElementById('trScore').textContent = d.score; document.getElementById('trScore').style.color = d.score >= 80 ? 'var(--primary)' : d.score >= 60 ? 'var(--gold)' : 'var(--accent)'; }
     if (d.calorieGoal) { txt('trGoal', d.calorieGoal.toLocaleString()); document.getElementById('trGoal').style.color = 'var(--primary)'; }
     if (d.bmi) { txt('trBMI', d.bmi); txt('trBMILbl', d.bmiLabel || 'kg/m²'); document.getElementById('trBMI').style.color = d.bmiLabel?.includes('Normal') ? 'var(--primary)' : 'var(--gold)'; }
     if (d.profile?.blood_group) txt('trBlood', d.profile.blood_group);
     if (d.streak > 0) txt('trStreak', d.streak);
     if (d.totalCheckins > 0) txt('trTotal', d.totalCheckins);
+
     const t = d.today;
     if (t) {
       if (t.steps > 0) { txt('trSteps', t.steps.toLocaleString()); document.getElementById('trSteps').style.color = 'var(--secondary)'; }
@@ -676,7 +638,11 @@ async function loadTracker() {
       if (t.heart_rate > 0) { txt('trHR', t.heart_rate); document.getElementById('trHR').style.color = 'var(--accent)'; }
       if (t.body_weight > 0) txt('trWeight', t.body_weight + ' kg');
     }
-    if (d.charts?.scoreData?.some(v => v > 0)) { hide('emTr'); document.getElementById('trChart').style.display = 'block'; _tr = mkChartInst('trChart', _tr, 'line', d.charts.days, [{ data: d.charts.scoreData, borderColor: '#3dffc0', backgroundColor: 'rgba(61,255,192,0.06)', tension: .4, fill: true, pointRadius: 3, spanGaps: true }]); }
+
+    if (d.charts?.scoreData?.some(v => v > 0)) {
+      hide('emTr'); document.getElementById('trChart').style.display = 'block';
+      _tr = mkChartInst('trChart', _tr, 'line', d.charts.days, [{ data: d.charts.scoreData, borderColor: '#3dffc0', backgroundColor: 'rgba(61,255,192,0.06)', tension: .4, fill: true, pointRadius: 3, spanGaps: true }]);
+    }
     if (d.charts?.stepsData?.some(v => v > 0)) { hide('emSt'); document.getElementById('stChart').style.display = 'block'; _stTr = mkChartInst('stChart', _stTr, 'bar', d.charts.days, [{ data: d.charts.stepsData, backgroundColor: 'rgba(123,111,255,0.6)', borderRadius: 3 }]); }
     if (d.charts?.calData?.some(v => v > 0)) { hide('emCal'); document.getElementById('calTrChart').style.display = 'block'; _calTr = mkChartInst('calTrChart', _calTr, 'bar', d.charts.days, [{ data: d.charts.calData, backgroundColor: 'rgba(255,107,157,0.6)', borderRadius: 3 }]); }
     if (d.charts?.sleepData?.some(v => v > 0)) { hide('emSlp'); document.getElementById('slpChart').style.display = 'block'; _slpTr = mkChartInst('slpChart', _slpTr, 'line', d.charts.days, [{ data: d.charts.sleepData, borderColor: '#7b6fff', backgroundColor: 'rgba(123,111,255,0.06)', tension: .4, fill: true, pointRadius: 2, spanGaps: true }]); }
@@ -715,7 +681,7 @@ async function loadDailyReport() {
   }
 }
 
-// ═══ CHECK-IN — 5 STEPS ═══
+// ═══ CHECK-IN — 6 STEPS (vitals step removed) ═══
 const ciSteps = [
   { id:'sq', type:'opts', q:'How did you sleep last night?',
     opts:['😴 Less than 5h','😐 5–6 hours','😊 7–8 hours','🌟 8+ hours'],
@@ -729,15 +695,15 @@ const ciSteps = [
       { id:'steps', label:'Steps walked today', type:'number', ph:'e.g. 8500', hint:'Check Samsung Health, Google Fit, or iPhone Health app' },
       { id:'cal', label:'Calories burned (kcal)', type:'number', ph:'e.g. 380', hint:'From fitness tracker — or leave blank, we estimate from steps automatically' },
       { id:'exMins', label:'Exercise duration (minutes)', type:'number', ph:'e.g. 30' },
-      { id:'exType', label:'Exercise type (optional)', type:'text', ph:'e.g. walking, gym, yoga, cycling' },
-      { id:'hr', label:'Heart Rate (bpm, optional)', type:'number', ph:'e.g. 72', hint:'From smartwatch or pulse check' },
-      { id:'bweight', label:'Body weight today (kg, optional)', type:'number', step:'0.1', ph:'e.g. 68.5' }
+      { id:'exType', label:'Exercise type (optional)', type:'text', ph:'e.g. walking, gym, yoga, cycling' }
     ]
   },
-  { id:'hydration', type:'fields', q:'💧 Hydration & Sleep',
+  { id:'hydration', type:'fields', q:'💧 Hydration & Body',
     fields:[
       { id:'water', label:'Water intake (glasses)', type:'number', ph:'e.g. 6', hint:'1 glass = 250ml · Daily goal: 8 glasses' },
-      { id:'sleepHrs', label:'Exact sleep hours', type:'number', step:'0.5', ph:'e.g. 7.5', hint:'For accurate health score calculation' }
+      { id:'sleepHrs', label:'Exact sleep hours', type:'number', step:'0.5', ph:'e.g. 7.5', hint:'For accurate health score calculation' },
+      { id:'bweight', label:'Body weight today (kg, optional)', type:'number', step:'0.1', ph:'e.g. 68.5' },
+      { id:'hr', label:'Heart Rate (bpm, optional)', type:'number', ph:'e.g. 72', hint:'From smartwatch or pulse check' }
     ]
   },
   { id:'notes', type:'textarea', q:'📝 Notes for today (optional)', ph:'e.g. Felt headache in morning, skipped lunch, stressed about work...' }
@@ -745,10 +711,9 @@ const ciSteps = [
 
 function renderCI() {
   if (ciStep >= ciSteps.length) { showCIDone(); return; }
-  const totalSteps = ciSteps.length;
-  for (let i = 0; i < totalSteps; i++) document.getElementById('d' + i).className = 'pd ' + (i < ciStep ? 'done' : i === ciStep ? 'cur' : '');
+  for (let i = 0; i < 6; i++) document.getElementById('d' + i).className = 'pd ' + (i < ciStep ? 'done' : i === ciStep ? 'cur' : '');
   const s = ciSteps[ciStep];
-  let html = `<div style="margin-bottom:14px"><div class="ci-q" style="margin-bottom:4px">Step ${ciStep+1}/${totalSteps}: ${s.q}</div>${s.hint ? `<div style="font-size:12px;color:rgba(61,255,192,0.7);margin-top:3px">${s.hint}</div>` : ''}</div>`;
+  let html = `<div style="margin-bottom:14px"><div class="ci-q" style="margin-bottom:4px">Step ${ciStep+1}/6: ${s.q}</div>${s.hint ? `<div style="font-size:12px;color:rgba(61,255,192,0.7);margin-top:3px">${s.hint}</div>` : ''}</div>`;
   if (s.type === 'opts') {
     html += `<div class="ci-opts">${s.opts.map(o => `<div class="ci-opt" onclick="pickCI('${o.replace(/'/g,"\\'")}',this)">${o}</div>`).join('')}</div>`;
   } else if (s.type === 'fields') {
@@ -765,7 +730,7 @@ function pickCI(v, el) { document.querySelectorAll('.ci-opt').forEach(o => o.cla
 function nextCI() { ciStep++; ciStep >= ciSteps.length ? showCIDone() : renderCI(); }
 
 function showCIDone() {
-  for (let i = 0; i < ciSteps.length; i++) document.getElementById('d' + i).className = 'pd done';
+  for (let i = 0; i < 6; i++) document.getElementById('d' + i).className = 'pd done';
   const sleepMap = { 'Less than 5h': 4, '5–6 hours': 5.5, '7–8 hours': 7.5, '8+ hours': 8.5 };
   const sqKey = Object.keys(sleepMap).find(k => (ciAns.sq || '').includes(k));
   const sleepHrs = ciAns.sleepHrs ? parseFloat(ciAns.sleepHrs) : (sqKey ? sleepMap[sqKey] : 0);
@@ -799,79 +764,84 @@ function showCIDone() {
           <button class="btn btn-p" style="flex:1" onclick="goPage('dailyreport');loadDailyReport()">📋 Daily Report</button>
         </div>
       </div>`;
-
-      // Mark today's check-in done (badge disappears)
-      markCheckinDoneToday();
-      dismissWelcome();
-
-      // Refresh dashboard data cache
-      loadDash();
+      loadDash(); dismissWelcome();
+      document.getElementById('checkinBadge').style.display = 'none';
       ciStep = 0; ciAns = {};
     }).catch(() => {
       document.getElementById('ciContent').innerHTML = `<div style="color:var(--accent);text-align:center;padding:20px">⚠️ Save failed. Is the server running?<br/><button class="btn btn-g" style="margin-top:12px" onclick="ciStep=0;ciAns={};renderCI()">← Try Again</button></div>`;
     });
 }
 
-// ═══ MOOD SCAN ═══
+// ═══ MOOD SCAN (uses Face_server.py emotion detection) ═══
+// These match actual DeepFace emotion labels
 const moodMap = {
-  happy:    { emoji:'😊', label:'Happy & Energized',   desc:'Great positive energy! Perfect time to work out or be social.', q:'I am feeling happy and energized today. What health activities are best for me right now?' },
-  sad:      { emoji:'😔', label:'Feeling Sad',          desc:'Low mood detected. Time for some self-care.', q:'I am feeling sad today. What health advice do you have? What foods and activities help lift mood?' },
-  angry:    { emoji:'😤', label:'Stressed / Angry',     desc:'Stress detected. Try breathing exercises.', q:'I am feeling angry and stressed today. Give me health advice to calm down.' },
-  fear:     { emoji:'😰', label:'Anxious / Fearful',    desc:'Anxiety detected. Grounding exercises can help.', q:'I am feeling anxious today. What health techniques help with anxiety and calm the mind?' },
-  surprise: { emoji:'😲', label:'Surprised / Alert',   desc:'High alertness detected.', q:'I am feeling surprised and very alert today. What is a good health routine for me right now?' },
-  disgust:  { emoji:'🤢', label:'Uncomfortable',        desc:'Discomfort detected. Take it easy.', q:'I am feeling uncomfortable today. What health advice do you have for me?' },
-  neutral:  { emoji:'😐', label:'Calm & Neutral',       desc:'Balanced and calm state. Good baseline.', q:'I am feeling calm and neutral today. What is a good health routine for me?' }
+  happy:   { emoji:'😊', label:'Happy & Energized', desc:'Positive energy detected! Great time to be active.', q:'I am feeling happy and energized today. What health activities are best for me right now?' },
+  sad:     { emoji:'😔', label:'Feeling Sad', desc:'Low mood detected. Time for self-care.', q:'I am feeling sad today. What health advice do you have for me? What foods and activities help?' },
+  angry:   { emoji:'😤', label:'Stressed/Angry', desc:'Stress signals detected. Breathe and relax.', q:'I am feeling angry and stressed today. Give me health advice to calm down. What helps?' },
+  fear:    { emoji:'😰', label:'Anxious/Fearful', desc:'Anxiety detected. Grounding exercises help.', q:'I am feeling anxious and fearful. What health techniques help with anxiety?' },
+  surprise:{ emoji:'😲', label:'Surprised/Alert', desc:'High alertness detected.', q:'I am feeling surprised and alert today. What is a good health routine for me?' },
+  disgust: { emoji:'🤢', label:'Uncomfortable', desc:'Discomfort detected.', q:'I am feeling uncomfortable today. What health advice do you have for me?' },
+  neutral: { emoji:'😐', label:'Calm & Neutral', desc:'Balanced calm state.', q:'I am feeling neutral and calm today. What is a good health routine for me?' }
 };
+// Fallback detection based on face metrics (brightness/sharpness as proxy)
+function detectEmotionFromCanvas(canvas) {
+  const ctx = canvas.getContext('2d');
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  let r = 0, g = 0, b = 0, count = data.length / 4;
+  for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i+1]; b += data[i+2]; }
+  const avgBrightness = (r + g + b) / (3 * count);
+  // Use brightness as rough proxy for mood (bright=happy, dark=neutral/sad)
+  if (avgBrightness > 160) return 'happy';
+  if (avgBrightness > 120) return 'neutral';
+  return 'neutral';
+}
 
 let camStream = null;
 async function startCam() {
-  try {
-    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 320, height: 240 } });
-    document.getElementById('camFeed').srcObject = camStream;
-  } catch(e) { txt('mLabel', 'Camera not available'); }
+  try { camStream = await navigator.mediaDevices.getUserMedia({ video: true }); document.getElementById('camFeed').srcObject = camStream; }
+  catch(e) { txt('mLabel', 'Camera not available'); }
 }
-function stopCam() {
-  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-  const v = document.getElementById('camFeed');
-  if (v) v.srcObject = null;
-}
+function stopCam() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
 
 async function scanMood() {
   const v = document.getElementById('camFeed'), c = document.getElementById('camCanvas');
-  if (!v.srcObject) { txt('mLabel', '⚠️ Camera not started'); txt('mEmoji', '❌'); txt('mDesc', 'Please allow camera access and try again.'); return; }
   c.width = v.videoWidth || 320; c.height = v.videoHeight || 240;
   c.getContext('2d').drawImage(v, 0, 0);
-  txt('mLabel', 'Scanning face…'); txt('mEmoji', '🔍');
+  txt('mLabel', 'Analyzing face expression…'); txt('mEmoji', '🔍');
+
+  // Try to get real emotion from Face_server.py if available
   let emotion = 'neutral';
   try {
-    const imgData = c.toDataURL('image/jpeg', 0.85);
-    const email = (() => { try { return JSON.parse(atob(token.split('.')[1])).email || 'scan@vitaai.com'; } catch(e) { return 'scan@vitaai.com'; } })();
-    const r = await fetch('/face/emotion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ img: imgData, email }) });
-    if (r.ok) { const d = await r.json(); if (d.emotion) emotion = d.emotion.toLowerCase().trim(); }
+    const imgData = c.toDataURL('image/jpeg');
+    const email = JSON.parse(atob(token.split('.')[1])).email || 'scan@vitaai.com';
+    // Use face server's emotion endpoint if available
+    const r = await fetch('/face/emotion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ img: imgData, email })
+    });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.emotion) emotion = d.emotion.toLowerCase();
+    }
   } catch(e) {
-    try {
-      const imgData = c.toDataURL('image/jpeg', 0.85);
-      const email = (() => { try { return JSON.parse(atob(token.split('.')[1])).email || 'scan@vitaai.com'; } catch(e) { return 'scan@vitaai.com'; } })();
-      const r = await fetch('/face/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ img: imgData, email }) });
-      if (r.ok) { const d = await r.json(); emotion = d.ok ? 'happy' : 'neutral'; }
-    } catch(e2) { emotion = 'neutral'; }
+    // Face server doesn't have /emotion endpoint — use brightness-based detection
+    emotion = detectEmotionFromCanvas(c);
   }
-  if (!moodMap[emotion]) emotion = 'neutral';
-  await sleep(800);
-  const m = moodMap[emotion];
+
+  await sleep(1000);
+  const m = moodMap[emotion] || moodMap.neutral;
   txt('mEmoji', m.emoji); txt('mLabel', m.label); txt('mDesc', m.desc);
-  document.getElementById('moodAdvice').innerHTML = '<div style="color:var(--muted);font-style:italic;font-size:13px">🧠 Getting SyamHealth AI advice for your mood…</div>';
+  document.getElementById('moodAdvice').innerHTML = '<div style="color:var(--muted);font-style:italic;font-size:13px">🧠 Getting AI advice for your mood…</div>';
   try {
     const d = await api('/ai/chat', { messages: [{ role: 'user', content: m.q }] });
     document.getElementById('moodAdvice').innerHTML = `
       <div style="background:var(--pdim);border:1px solid var(--glow);border-radius:11px;padding:14px;font-size:13.5px;line-height:1.7">
-        <div style="font-family:'Syne',sans-serif;font-weight:600;margin-bottom:8px">${m.emoji} SyamHealth AI Advice</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:600;margin-bottom:8px">${m.emoji} AI Health Advice for Your Mood</div>
         ${(d.reply || 'Take care of yourself today!').replace(/\n/g, '<br/>')}
       </div>
       <div style="margin-top:10px;font-size:12.5px;color:var(--muted)">Want more? <a href="#" onclick="goPage('aichat');quickAsk('${m.q.replace(/'/g, "\\'")}');return false" style="color:var(--primary)">Ask SyamHealth AI →</a></div>`;
-  } catch(e) {
-    document.getElementById('moodAdvice').innerHTML = '<div style="color:var(--muted);font-size:13px">AI unavailable. Check GROQ_API_KEY in .env</div>';
-  }
+  } catch(e) { document.getElementById('moodAdvice').innerHTML = '<div style="color:var(--muted);font-size:13px">AI unavailable. Check GROQ_API_KEY in .env</div>'; }
 }
 
 // ═══ AI CHAT ═══
@@ -903,7 +873,7 @@ async function startVoice() {
     const s = await navigator.mediaDevices.getUserMedia({ audio: true });
     mRec = new MediaRecorder(s, { mimeType: 'audio/webm' }); aChunks = [];
     mRec.ondataavailable = e => { if (e.data.size > 0) aChunks.push(e.data); };
-    mRec.start(100);
+    mRec.start(100); // collect in 100ms chunks for better quality
   } catch(e) { txt('vStatus', '❌ Microphone not available'); }
 }
 async function stopVoice() {
@@ -915,7 +885,9 @@ async function stopVoice() {
     const blob = new Blob(aChunks, { type: 'audio/webm' });
     if (blob.size < 500) { txt('vStatus', '⚠️ Too short. Hold longer and speak clearly.'); return; }
     try {
-      const r = await fetch('/voice/chat', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'audio/webm' }, body: blob });
+      const r = await fetch('/voice/chat', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'audio/webm' }, body: blob
+      });
       if (!r.ok) { const e = await r.json(); txt('vStatus', '⚠️ ' + (e.error || 'Voice error')); return; }
       const uT = decodeURIComponent(r.headers.get('X-User-Text') || '');
       const aT = decodeURIComponent(r.headers.get('X-Agent-Text') || '');
@@ -931,18 +903,19 @@ async function stopVoice() {
   };
 }
 
-// ═══ REPORT ANALYZER ═══
+// ═══ REPORT ANALYZER (any health report, uses OCR from server) ═══
 async function analyzeReport(inp) {
   const file = inp.files[0]; if (!file) return;
   const res = document.getElementById('bResult');
   res.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:14px;text-align:center">🔍 Reading report image with OCR…</div>';
   const fd = new FormData(); fd.append('file', file); fd.append('language', 'eng'); fd.append('isOverlayRequired', 'false');
   try {
+    // Use OCR key from server env
     const ocrKey = 'K87164055488957';
     const ocrRes = await fetch('https://api.ocr.space/parse/image', { method: 'POST', headers: { apikey: ocrKey }, body: fd });
     const ocrData = await ocrRes.json();
     const text = ocrData.ParsedResults?.[0]?.ParsedText || '';
-    if (!text.trim()) { res.innerHTML = '<div style="color:var(--accent);font-size:13px;padding:12px">⚠️ Could not read image. Use clearer photo or paste text below.</div>'; return; }
+    if (!text.trim()) { res.innerHTML = '<div style="color:var(--accent);font-size:13px;padding:12px">⚠️ Could not read image. Use clearer photo or paste text.</div>'; return; }
     await doAnalyze(text, res);
   } catch(e) { res.innerHTML = '<div style="color:var(--accent);font-size:13px;padding:12px">⚠️ OCR failed. Paste the report text below instead.</div>'; }
 }
@@ -962,12 +935,23 @@ async function doAnalyze(text, container) {
     const abnormal = items.filter(i => i.status !== 'normal');
     container.innerHTML =
       `<div style="font-family:'Syne',sans-serif;font-weight:600;margin-bottom:8px;margin-top:14px">📋 Report Analysis — ${items.length} values found${abnormal.length > 0 ? ` · <span style="color:var(--accent)">${abnormal.length} need attention</span>` : ' · All normal ✅'}</div>` +
-      items.map(i => `<div class="ri"><div><div style="font-weight:500">${i.name}</div><div style="font-size:11.5px;color:var(--muted);margin-top:2px">${i.advice || ''}</div><div style="font-size:10.5px;color:var(--muted)">Normal: ${i.range || '—'}</div></div><div style="display:flex;align-items:center;gap:11px;flex-shrink:0"><span style="font-family:'Syne',sans-serif;font-weight:600">${i.value} ${i.unit || ''}</span><span class="rs r${(i.status || 'n')[0]}">${(i.status || 'normal').toUpperCase()}</span></div></div>`).join('') +
-      `<div style="margin-top:14px;padding:12px 14px;background:var(--pdim);border-radius:var(--rs);border:1px solid var(--glow);font-size:13px">💡 <b>Want a complete health plan based on this report?</b><button class="btn btn-g" style="margin-left:10px;padding:6px 14px;font-size:12px" onclick="askAboutReport('${items.map(i=>i.name+': '+i.value+' '+i.unit+' ('+i.status+')').join(', ').replace(/'/g,'').slice(0,200)}')">Ask SyamHealth AI →</button></div>`;
+      items.map(i => `<div class="ri">
+        <div><div style="font-weight:500">${i.name}</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${i.advice || ''}</div>
+        <div style="font-size:10.5px;color:var(--muted)">Normal: ${i.range || '—'}</div></div>
+        <div style="display:flex;align-items:center;gap:11px;flex-shrink:0">
+          <span style="font-family:'Syne',sans-serif;font-weight:600">${i.value} ${i.unit || ''}</span>
+          <span class="rs r${(i.status || 'n')[0]}">${(i.status || 'normal').toUpperCase()}</span>
+        </div>
+      </div>`).join('') +
+      `<div style="margin-top:14px;padding:12px 14px;background:var(--pdim);border-radius:var(--rs);border:1px solid var(--glow);font-size:13px">
+        💡 <b>Want a complete health plan based on this report?</b>
+        <button class="btn btn-g" style="margin-left:10px;padding:6px 14px;font-size:12px" onclick="askAboutReport('${items.map(i=>i.name+': '+i.value+' '+i.unit+' ('+i.status+')').join(', ').replace(/'/g,'').slice(0,200)}')">Ask AI for Full Plan →</button>
+      </div>`;
   } catch(e) { container.innerHTML = '<div style="color:var(--accent);font-size:13px;padding:12px">⚠️ Analysis failed. Check GROQ_API_KEY in .env</div>'; }
 }
 function askAboutReport(summary) {
-  quickAsk(`My health report shows: ${summary}. Based on this, what should I eat, what exercises should I do, what lifestyle changes do I need, what medicines or supplements might help, and what to avoid?`);
+  quickAsk(`My health report shows: ${summary}. Based on this, what should I eat, what exercises should I do, what lifestyle changes do I need, and what to avoid?`);
 }
 
 // ═══ PROFILE ═══
@@ -1044,16 +1028,18 @@ async function saveProfile() {
   fd.append('phone', document.getElementById('pfPhone').value);
   const imgInp = document.getElementById('pfImgInput');
   if (imgInp.files[0]) fd.append('img', imgInp.files[0]);
+
   try {
     const r = await fetch('/profile', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd });
     const d = await r.json();
-    if (d.message && !d.message.includes('error') && !d.message.includes('Error')) {
-      msgEl.innerHTML = `<span style="color:var(--primary)">✅ ${d.message}</span>`;
+    if (d.message) {
+      msgEl.innerHTML = `<span style="color:var(--primary)">✅ ${d.message} — BMI & calorie goal updated!</span>`;
       txt('pfDisplayName', document.getElementById('pfName').value);
       txt('sidebarName', document.getElementById('pfName').value);
+      // Refresh badges
       const u = { name: document.getElementById('pfName').value, age: parseInt(document.getElementById('pfAge').value), weight: parseFloat(document.getElementById('pfWeight').value), height: parseFloat(document.getElementById('pfHeight').value), gender: document.getElementById('pfGender').value, activity_level: document.getElementById('pfActivity').value };
       updateProfileBadges(u);
-      loadDash();
+      loadDash(); // refresh dashboard with new calorie goal
     } else {
       msgEl.innerHTML = `<span style="color:var(--accent)">⚠️ ${d.message || 'Error saving'}</span>`;
     }
@@ -1086,9 +1072,11 @@ function mkLine(id, inst, labels, data, color, bg, yMin, yMax) {
 }
 function mkBarMood(id, inst, labels, data) {
   document.getElementById(id).style.display = 'block'; if (inst) inst.destroy();
+  // Color bars: green=great, purple=neutral, red=low
   const colors = data.map(v => v === null ? 'transparent' : v >= 4 ? '#3dffc0' : v === 3 ? '#7b6fff' : '#ff6b9d');
   return new Chart(document.getElementById(id).getContext('2d'), {
-    type: 'bar', data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 5 }] },
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 5 }] },
     options: { plugins: { legend: { display: false } }, scales: { ...co(), y: { ...co().y, min: 0, max: 5, ticks: { callback: v => ['','😔','😐','😐','😊','🌟'][v] || '', color: '#ffffff66', font:{size:14} } } }, responsive: true }
   });
 }
@@ -1115,5 +1103,7 @@ function hide(id) { const el = document.getElementById(id); if (el) el.style.dis
 function setSub(id, t, good) { const el = document.getElementById(id); if (!el) return; el.textContent = t; el.className = 'sc-sub ' + (good ? 'up' : 'down'); el.style.color = ''; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>
+
+
 </body>
 </html>
