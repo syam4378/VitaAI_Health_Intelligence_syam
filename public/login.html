@@ -94,49 +94,79 @@ input::placeholder{color:var(--muted);}
   </div>
 </div>
 <script>
-if(localStorage.getItem('token'))window.location.href='home.html';
-let stream=null;
+// ── NO AUTO-LOGIN: Always show login page, even if token exists ──
+// Token is cleared on logout in home.html; user must always log in fresh.
+// We do NOT redirect here even if a token is present, because the user
+// explicitly logged out and should authenticate again.
+
+let stream = null;
+
 function switchTab(t) {
-  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',(t==='face'&&i===0)||(t==='password'&&i===1)));
-  document.getElementById('tabFace').classList.toggle('active',t==='face');
-  document.getElementById('tabPassword').classList.toggle('active',t==='password');
-  if(t!=='face'&&stream){stream.getTracks().forEach(x=>x.stop());stream=null;}
+  document.querySelectorAll('.tab').forEach((b,i) =>
+    b.classList.toggle('active',(t==='face'&&i===0)||(t==='password'&&i===1)));
+  document.getElementById('tabFace').classList.toggle('active', t==='face');
+  document.getElementById('tabPassword').classList.toggle('active', t==='password');
+  if (t !== 'face' && stream) { stream.getTracks().forEach(x => x.stop()); stream = null; }
 }
-function showMsg(id,text,type){const el=document.getElementById(id);el.textContent=text;el.className='msg '+type;el.style.display='block';}
-async function startCamera(){
-  try{stream=await navigator.mediaDevices.getUserMedia({video:true});document.getElementById('videoBox').srcObject=stream;showMsg('faceMsg','Camera ready. Look straight at camera.','info');}
-  catch(e){showMsg('faceMsg','Camera denied. Allow camera access.','error');}
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = 'msg ' + type; el.style.display = 'block';
 }
-async function faceLogin(){
-  const email=document.getElementById('faceEmail').value.trim();
-  const video=document.getElementById('videoBox');
-  const canvas=document.getElementById('canvas');
-  if(!email){showMsg('faceMsg','Enter your email first.','error');return;}
-  if(!video.srcObject){showMsg('faceMsg','Open camera first.','error');return;}
-  canvas.width=video.videoWidth;canvas.height=video.videoHeight;
-  canvas.getContext('2d').drawImage(video,0,0);
-  showMsg('faceMsg','🔍 Scanning face…','info');
-  try{
-    const fr=await fetch('https://vitaai-face-latest.onrender.com/face/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,img:canvas.toDataURL('image/jpeg')})});
-    const fd=await fr.json();
-    if(!fd.ok){showMsg('faceMsg','❌ '+fd.msg,'error');return;}
-    showMsg('faceMsg','✅ Face matched! Logging in…','success');
-    const lr=await fetch('https://vitaai-face-latest.onrender.com/face-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-    const ld=await lr.json();
-    if(ld.token){localStorage.setItem('token',ld.token);if(stream)stream.getTracks().forEach(t=>t.stop());window.location.href='home.html';}
-    else showMsg('faceMsg','❌ '+ld.message,'error');
-  }catch(e){showMsg('faceMsg','⚠️ Server error. Make sure server is running.','error');}
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    document.getElementById('videoBox').srcObject = stream;
+    showMsg('faceMsg', 'Camera ready. Look straight at camera.', 'info');
+  } catch(e) { showMsg('faceMsg', 'Camera denied. Allow camera access.', 'error'); }
 }
-async function passwordLogin(){
-  const email=document.getElementById('email').value.trim();
-  const pass=document.getElementById('password').value;
-  if(!email||!pass){showMsg('passMsg','Please fill all fields.','error');return;}
-  try{
-    const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
-    const d=await r.json();
-    if(d.token){localStorage.setItem('token',d.token);window.location.href='home.html';}
-    else showMsg('passMsg','❌ '+d.message,'error');
-  }catch(e){showMsg('passMsg','⚠️ Server error.','error');}
+
+async function faceLogin() {
+  const email  = document.getElementById('faceEmail').value.trim();
+  const video  = document.getElementById('videoBox');
+  const canvas = document.getElementById('canvas');
+  if (!email) { showMsg('faceMsg', 'Enter your email first.', 'error'); return; }
+  if (!video.srcObject) { showMsg('faceMsg', 'Open camera first.', 'error'); return; }
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  showMsg('faceMsg', '🔍 Scanning face…', 'info');
+  try {
+    const fr = await fetch('https://vitaai-face-latest.onrender.com/face/verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, img: canvas.toDataURL('image/jpeg') })
+    });
+    const fd = await fr.json();
+    if (!fd.ok) { showMsg('faceMsg', '❌ ' + fd.msg, 'error'); return; }
+    showMsg('faceMsg', '✅ Face matched! Logging in…', 'success');
+    const lr = await fetch('https://vitaai-face-latest.onrender.com/face-login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const ld = await lr.json();
+    if (ld.token) {
+      localStorage.setItem('token', ld.token);
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      window.location.href = 'home.html';
+    } else { showMsg('faceMsg', '❌ ' + ld.message, 'error'); }
+  } catch(e) { showMsg('faceMsg', '⚠️ Server error. Make sure server is running.', 'error'); }
+}
+
+async function passwordLogin() {
+  const email = document.getElementById('email').value.trim();
+  const pass  = document.getElementById('password').value;
+  if (!email || !pass) { showMsg('passMsg', 'Please fill all fields.', 'error'); return; }
+  try {
+    const r = await fetch('/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass })
+    });
+    const d = await r.json();
+    if (d.token) {
+      localStorage.setItem('token', d.token);
+      window.location.href = 'home.html';
+    } else { showMsg('passMsg', '❌ ' + d.message, 'error'); }
+  } catch(e) { showMsg('passMsg', '⚠️ Server error.', 'error'); }
 }
 </script>
 </body>
