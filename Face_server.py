@@ -304,7 +304,7 @@ def face_emotion():
 
 # ── ENTRYPOINT ────────────────────────────────────────────
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))
     print("=" * 50)
     print(f"  VitaAI Face Server  —  port {port}")
     print(f"  Identity    : dlib 128D (3 encodings/user)")

@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Step 1: Install everything EXCEPT dlib first
+# Step 1: Install everything except dlib
 RUN pip install --no-cache-dir \
     flask==2.2.5 \
     flask-cors==3.0.10 \
@@ -28,12 +28,9 @@ RUN pip install --no-cache-dir \
     opencv-python-headless==4.7.0.72 \
     fer==22.5.1
 
-# Step 2: Install dlib separately with cmake policy fix
-# dlib 19.24.6 fixes the pybind11 CMake compatibility issue
-RUN pip install --no-cache-dir \
-    "cmake>=3.25" \
-    && CMAKE_POLICY_VERSION_MINIMUM=3.5 pip install --no-cache-dir \
-    dlib==19.24.6
+# Step 2: Install dlib with cmake policy fix
+RUN pip install --no-cache-dir "cmake>=3.25" \
+    && CMAKE_POLICY_VERSION_MINIMUM=3.5 pip install --no-cache-dir dlib==19.24.6
 
 # Download dlib model files at build time
 RUN mkdir -p /app/models
@@ -54,11 +51,13 @@ RUN wget -q \
 
 COPY Face_server.py .
 
-EXPOSE 5000
+# Use PORT env variable — Render sets this automatically
+# Default to 10000 which is Render's preferred port
+EXPOSE 10000
 
-CMD ["gunicorn", \
-     "--bind", "0.0.0.0:5000", \
-     "--workers", "1", \
-     "--timeout", "120", \
-     "--log-level", "info", \
-     "Face_server:app"]
+CMD gunicorn \
+    --bind "0.0.0.0:${PORT:-10000}" \
+    --workers 1 \
+    --timeout 120 \
+    --log-level info \
+    Face_server:app
