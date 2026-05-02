@@ -528,66 +528,69 @@ function goPage(name) {
 function logout() { localStorage.removeItem('token'); location.href = 'login.html'; }
 
 // ═══ LOAD DASHBOARD ═══
+// Fetches /checkins directly as bulletproof data source for stat cards.
+// /dashboard/stats is used for score, charts, streak. Both fetched in parallel.
 async function loadDash() {
+  let stats = null;
+  let checkins = [];
   try {
-    const d = await api('/dashboard/stats');
-    renderDash(d);
-  } catch(e) { renderDash({ hasData: false, score: 0, totalCheckins: 0, today: null, last: null, charts: null }); }
+    const [sr, cr] = await Promise.all([
+      fetch('/dashboard/stats', { headers: { Authorization: 'Bearer ' + token } }),
+      fetch('/checkins',        { headers: { Authorization: 'Bearer ' + token } })
+    ]);
+    if (sr.ok) stats    = await sr.json();
+    if (cr.ok) checkins = (await cr.json()).checkins || [];
+  } catch(e) {}
+  renderDash(stats, checkins);
 }
 
-function renderDash(d) {
-  const has = d.hasData && d.totalCheckins > 0;
+function renderDash(d, checkins) {
+  // latest = most recent check-in from raw /checkins list — 100% reliable
+  const latest = checkins[0] || null;
+  const total  = latest ? checkins.length : ((d && d.totalCheckins) || 0);
+  const has    = total > 0;
 
-  // ── WELCOME BANNER: only show when user has zero check-ins ever ──
-  vis('wbNew', !has, 'flex');
-  vis('wbScore', has, 'flex');
-  vis('histCard', has, 'block');
-  vis('actCharts', has, 'grid');
+  // ── Welcome banner: show ONLY when zero check-ins ever ──
+  vis('wbNew',     !has, 'flex');
+  vis('wbScore',    has, 'flex');
+  vis('histCard',   has, 'block');
+  vis('actCharts',  has, 'grid');
 
+  // ── Health Score banner ──
   if (has) {
-    txt('scoreNum', d.score);
-    const lbl = d.score >= 80 ? '/ 100 · Excellent 🌟' : d.score >= 60 ? '/ 100 · Good 👍' : d.score >= 40 ? '/ 100 · Fair ⚡' : '/ 100 · Keep Going 💪';
+    const sc  = (d && d.score) ? d.score : (latest ? latest.health_score || 0 : 0);
+    const avg = (d && d.avgScore) ? d.avgScore : sc;
+    txt('scoreNum', sc);
+    const lbl = sc >= 80 ? '/ 100 · Excellent 🌟' : sc >= 60 ? '/ 100 · Good 👍' : sc >= 40 ? '/ 100 · Fair ⚡' : '/ 100 · Keep Going 💪';
     txt('scoreLabel', lbl);
-    txt('scoreSubtitle', `Avg of last ${Math.min(d.totalCheckins, 7)} check-ins · ${d.totalCheckins} total`);
-    txt('avgTag', `Score: ${d.score}/100`);
-    if (d.streak > 0) { txt('streakNum', d.streak); vis('streakBadge', true, 'block'); }
+    txt('scoreSubtitle', `Latest score · 7-day avg: ${avg} · ${total} total check-ins`);
+    txt('avgTag', `Score: ${sc}/100`);
+    const streak = (d && d.streak) ? d.streak : 0;
+    if (streak > 0) { txt('streakNum', streak); vis('streakBadge', true, 'block'); }
   }
 
-  // ── KEY FIX: use today's data if available, else fall back to last check-in ──
-  // This ensures the dashboard is NEVER empty after the first check-in
-  const t = d.today || d.last;
-
-  if (t) {
-    const w = t.water || 0;
+  // ── Stat cards: use latest raw check-in — NEVER empty after first check-in ──
+  if (latest) {
+    const w = latest.water_intake || 0;
     txt('stWater', w > 0 ? w + ' glasses' : '—');
-    setSub('stWaterSub', w > 0 ? (w >= 8 ? '✅ Daily goal reached!' : `↑ ${8 - w} more to 8-glass goal`) : 'Log in check-in', w >= 6);
+    setSub('stWaterSub', w > 0 ? (w >= 8 ? '✅ Daily goal reached!' : `↑ ${8 - w} more to 8-glass goal`) : '—', w >= 6);
 
-    const st = t.steps || 0;
+    const st = latest.steps || 0;
     txt('stSteps', st > 0 ? st.toLocaleString() : '—');
-    setSub('stStepsSub', st > 0 ? (st >= 10000 ? '✅ 10k goal reached!' : st >= 5000 ? '↑ Good progress!' : '↓ Goal: 10,000 steps') : 'Log in check-in', st >= 5000);
+    setSub('stStepsSub', st > 0 ? (st >= 10000 ? '✅ 10k goal reached!' : st >= 5000 ? '↑ Good progress!' : '↓ Goal: 10,000 steps') : '—', st >= 5000);
 
-    const cal = t.calories || 0;
+    const cal = latest.calories_burned || 0;
+    const calGoal = (d && d.calorieGoal) ? d.calorieGoal : 2000;
     txt('stCal', cal > 0 ? cal.toLocaleString() + ' kcal' : '—');
-    setSub('stCalSub', cal > 0 ? `Goal: ${(d.calorieGoal || 2000).toLocaleString()} kcal/day` : 'Log in check-in', cal > 0);
+    setSub('stCalSub', cal > 0 ? `Goal: ${calGoal.toLocaleString()} kcal/day` : '—', cal > 0);
 
-    const sh = t.sleep_hours > 0 ? t.sleep_hours + 'h' : (t.sleep || '—');
+    const sh = latest.sleep_hours > 0 ? latest.sleep_hours + 'h' : (latest.sleep_quality || '—');
     txt('stSleep', sh);
-    const gs = t.sleep_hours >= 7 || t.sleep?.includes('7-8') || t.sleep?.includes('8+');
-    setSub('stSleepSub', gs ? '↑ Good sleep!' : t.sleep ? '↓ Try sleeping more' : 'Log in check-in', gs);
-
-    // Show "from last check-in" label when no today's data (next-day scenario)
-    if (!d.today && d.last) {
-      // Subtle indicator that data is from last check-in, not today
-      const subIds = ['stWaterSub','stStepsSub','stCalSub','stSleepSub'];
-      subIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.textContent && !el.textContent.includes('Log in')) {
-          el.textContent += ' · from last check-in';
-        }
-      });
-    }
+    const gs = latest.sleep_hours >= 7
+      || (latest.sleep_quality && (latest.sleep_quality.includes('7-8') || latest.sleep_quality.includes('7–8') || latest.sleep_quality.includes('8+')));
+    setSub('stSleepSub', gs ? '↑ Good sleep!' : (latest.sleep_quality ? '↓ Try sleeping more' : '—'), gs);
   } else {
-    // Only shown for brand new users with 0 check-ins
+    // Truly zero check-ins — new user only
     ['stWater','stSteps','stCal','stSleep'].forEach(id => txt(id, '—'));
     ['stWaterSub','stStepsSub','stCalSub','stSleepSub'].forEach(id => {
       txt(id, 'Complete check-in to track');
@@ -596,69 +599,75 @@ function renderDash(d) {
     });
   }
 
-  // Charts — show based on how many checkins (7 days or 30 days)
-  if (has && d.charts) {
+  // ── Charts from stats API ──
+  if (has && d && d.charts) {
     const c = d.charts;
-    const days = d.chartDays || 7;
-
-    if (c.scoreData.some(v => v > 0)) {
-      hide('emWeek');
-      _wk = mkLine('weekChart', _wk, c.days, c.scoreData, '#3dffc0', 'rgba(61,255,192,0.06)');
-    }
-    if (c.moodData.some(v => v !== null)) {
-      hide('emMood');
-      document.getElementById('moodLegend').style.display = 'flex';
-      _mood = mkBarMood('moodChart', _mood, c.days, c.moodData);
-    }
-    if (c.sleepData.some(v => v !== null && v > 0)) {
-      hide('emSleep');
-      _sleep = mkLine('sleepChart', _sleep, c.days, c.sleepData, '#7b6fff', 'rgba(123,111,255,0.06)', 0, 12);
-    }
-    if (c.stepsData.some(v => v > 0)) mkBar('stepsChart', _steps, c.days, c.stepsData, 'rgba(123,111,255,0.7)');
-    if (c.calData.some(v => v > 0)) mkBar('calChart', _cal, c.days, c.calData, 'rgba(255,107,157,0.7)');
-    loadHist();
+    if (c.scoreData && c.scoreData.some(v => v > 0)) { hide('emWeek'); _wk = mkLine('weekChart', _wk, c.days, c.scoreData, '#3dffc0', 'rgba(61,255,192,0.06)'); }
+    if (c.moodData  && c.moodData.some(v => v !== null)) { hide('emMood'); document.getElementById('moodLegend').style.display = 'flex'; _mood = mkBarMood('moodChart', _mood, c.days, c.moodData); }
+    if (c.sleepData && c.sleepData.some(v => v !== null && v > 0)) { hide('emSleep'); _sleep = mkLine('sleepChart', _sleep, c.days, c.sleepData, '#7b6fff', 'rgba(123,111,255,0.06)', 0, 12); }
+    if (c.stepsData && c.stepsData.some(v => v > 0)) mkBar('stepsChart', _steps, c.days, c.stepsData, 'rgba(123,111,255,0.7)');
+    if (c.calData   && c.calData.some(v => v > 0))   mkBar('calChart', _cal, c.days, c.calData, 'rgba(255,107,157,0.7)');
   }
+  if (has) loadHist();
 }
 
 // ═══ TRACKER ═══
 async function loadTracker() {
+  // Fetch both stats and raw checkins in parallel
+  let d = null;
+  let checkins = [];
   try {
-    const d = await api('/dashboard/stats');
+    const [sr, cr] = await Promise.all([
+      fetch('/dashboard/stats', { headers: { Authorization: 'Bearer ' + token } }),
+      fetch('/checkins',        { headers: { Authorization: 'Bearer ' + token } })
+    ]);
+    if (sr.ok) d        = await sr.json();
+    if (cr.ok) checkins = (await cr.json()).checkins || [];
+  } catch(e) {}
+
+  const latest = checkins[0] || null; // always the most recent check-in
+
+  if (d) {
     const days = d.chartDays || 7;
     const periodLabel = days >= 30 ? 'Last 30 Days' : `Last ${days} Days`;
-    txt('trChartTitle', `📉 Health Score — ${periodLabel}`);
-    txt('stepsChartTitle', `🏃 Steps — ${periodLabel}`);
-    txt('calChartTitle', `🔥 Calories — ${periodLabel}`);
-    txt('sleepChartTitle', `💤 Sleep — ${periodLabel}`);
-    txt('waterChartTitle', `💧 Water — ${periodLabel}`);
-
-    if (d.hasData) { document.getElementById('trScore').textContent = d.score; document.getElementById('trScore').style.color = d.score >= 80 ? 'var(--primary)' : d.score >= 60 ? 'var(--gold)' : 'var(--accent)'; }
+    txt('trChartTitle',   `📉 Health Score — ${periodLabel}`);
+    txt('stepsChartTitle',`🏃 Steps — ${periodLabel}`);
+    txt('calChartTitle',  `🔥 Calories — ${periodLabel}`);
+    txt('sleepChartTitle',`💤 Sleep — ${periodLabel}`);
+    txt('waterChartTitle',`💧 Water — ${periodLabel}`);
     if (d.calorieGoal) { txt('trGoal', d.calorieGoal.toLocaleString()); document.getElementById('trGoal').style.color = 'var(--primary)'; }
     if (d.bmi) { txt('trBMI', d.bmi); txt('trBMILbl', d.bmiLabel || 'kg/m²'); document.getElementById('trBMI').style.color = d.bmiLabel?.includes('Normal') ? 'var(--primary)' : 'var(--gold)'; }
     if (d.profile?.blood_group) txt('trBlood', d.profile.blood_group);
-    if (d.streak > 0) txt('trStreak', d.streak);
-    if (d.totalCheckins > 0) txt('trTotal', d.totalCheckins);
+    if ((d.streak || 0) > 0) txt('trStreak', d.streak);
+    if ((d.totalCheckins || checkins.length) > 0) txt('trTotal', d.totalCheckins || checkins.length);
+  } else if (checkins.length > 0) {
+    txt('trTotal', checkins.length);
+  }
 
-    // Use today or last (same fallback logic as dashboard)
-    const t = d.today || d.last;
-    if (t) {
-      if (t.steps > 0) { txt('trSteps', t.steps.toLocaleString()); document.getElementById('trSteps').style.color = 'var(--secondary)'; }
-      if (t.calories > 0) { txt('trCal', t.calories.toLocaleString()); document.getElementById('trCal').style.color = 'var(--accent)'; }
-      if (t.water > 0) txt('trWater', t.water);
-      if (t.sleep_hours > 0) txt('trSleep', t.sleep_hours + 'h');
-      if (t.heart_rate > 0) { txt('trHR', t.heart_rate); document.getElementById('trHR').style.color = 'var(--accent)'; }
-      if (t.body_weight > 0) txt('trWeight', t.body_weight + ' kg');
-    }
+  // Score from latest check-in (most accurate, no timezone issue)
+  if (latest) {
+    const sc = (d && d.score) ? d.score : (latest.health_score || 0);
+    if (sc > 0) { document.getElementById('trScore').textContent = sc; document.getElementById('trScore').style.color = sc >= 80 ? 'var(--primary)' : sc >= 60 ? 'var(--gold)' : 'var(--accent)'; }
+  }
 
-    if (d.charts?.scoreData?.some(v => v > 0)) {
-      hide('emTr'); document.getElementById('trChart').style.display = 'block';
-      _tr = mkChartInst('trChart', _tr, 'line', d.charts.days, [{ data: d.charts.scoreData, borderColor: '#3dffc0', backgroundColor: 'rgba(61,255,192,0.06)', tension: .4, fill: true, pointRadius: 3, spanGaps: true }]);
-    }
+  // Stat metrics — always from raw latest check-in (bulletproof)
+  if (latest) {
+    if (latest.steps > 0)         { txt('trSteps', latest.steps.toLocaleString()); document.getElementById('trSteps').style.color = 'var(--secondary)'; }
+    if (latest.calories_burned>0) { txt('trCal', latest.calories_burned.toLocaleString()); document.getElementById('trCal').style.color = 'var(--accent)'; }
+    if (latest.water_intake > 0)    txt('trWater', latest.water_intake);
+    if (latest.sleep_hours > 0)     txt('trSleep', latest.sleep_hours + 'h');
+    if (latest.heart_rate > 0)    { txt('trHR', latest.heart_rate); document.getElementById('trHR').style.color = 'var(--accent)'; }
+    if (latest.body_weight > 0)     txt('trWeight', latest.body_weight + ' kg');
+  }
+
+  // Charts
+  if (d && d.charts) {
+    if (d.charts?.scoreData?.some(v => v > 0)) { hide('emTr'); document.getElementById('trChart').style.display = 'block'; _tr = mkChartInst('trChart', _tr, 'line', d.charts.days, [{ data: d.charts.scoreData, borderColor: '#3dffc0', backgroundColor: 'rgba(61,255,192,0.06)', tension: .4, fill: true, pointRadius: 3, spanGaps: true }]); }
     if (d.charts?.stepsData?.some(v => v > 0)) { hide('emSt'); document.getElementById('stChart').style.display = 'block'; _stTr = mkChartInst('stChart', _stTr, 'bar', d.charts.days, [{ data: d.charts.stepsData, backgroundColor: 'rgba(123,111,255,0.6)', borderRadius: 3 }]); }
-    if (d.charts?.calData?.some(v => v > 0)) { hide('emCal'); document.getElementById('calTrChart').style.display = 'block'; _calTr = mkChartInst('calTrChart', _calTr, 'bar', d.charts.days, [{ data: d.charts.calData, backgroundColor: 'rgba(255,107,157,0.6)', borderRadius: 3 }]); }
+    if (d.charts?.calData?.some(v => v > 0))   { hide('emCal'); document.getElementById('calTrChart').style.display = 'block'; _calTr = mkChartInst('calTrChart', _calTr, 'bar', d.charts.days, [{ data: d.charts.calData, backgroundColor: 'rgba(255,107,157,0.6)', borderRadius: 3 }]); }
     if (d.charts?.sleepData?.some(v => v > 0)) { hide('emSlp'); document.getElementById('slpChart').style.display = 'block'; _slpTr = mkChartInst('slpChart', _slpTr, 'line', d.charts.days, [{ data: d.charts.sleepData, borderColor: '#7b6fff', backgroundColor: 'rgba(123,111,255,0.06)', tension: .4, fill: true, pointRadius: 2, spanGaps: true }]); }
     if (d.charts?.waterData?.some(v => v > 0)) { hide('emWat'); document.getElementById('watChart').style.display = 'block'; _watTr = mkChartInst('watChart', _watTr, 'bar', d.charts.days, [{ data: d.charts.waterData, backgroundColor: 'rgba(61,255,192,0.5)', borderRadius: 3 }]); }
-  } catch(e) {}
+  }
 }
 
 // ═══ HISTORY TABLE ═══

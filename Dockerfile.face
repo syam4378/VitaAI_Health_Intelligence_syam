@@ -1,23 +1,17 @@
 FROM python:3.9-slim
 
-# System deps for dlib + OpenCV + FER
+# Install only REQUIRED system libs for OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    libboost-python-dev \
-    libboost-thread-dev \
     libglib2.0-0 \
     libgl1 \
     libsm6 \
     libxext6 \
     libxrender-dev \
-    wget \
-    bzip2 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Step 1: Install everything except dlib
+# Install Python dependencies
 RUN pip install --no-cache-dir \
     flask==2.2.5 \
     flask-cors==3.0.10 \
@@ -28,36 +22,11 @@ RUN pip install --no-cache-dir \
     opencv-python-headless==4.7.0.72 \
     fer==22.5.1
 
-# Step 2: Install dlib with cmake policy fix
-RUN pip install --no-cache-dir "cmake>=3.25" \
-    && CMAKE_POLICY_VERSION_MINIMUM=3.5 pip install --no-cache-dir dlib==19.24.6
-
-# Download dlib model files at build time
-RUN mkdir -p /app/models
-
-RUN wget -q \
-    "https://github.com/davisking/dlib-models/raw/master/shape_predictor_68_face_landmarks.dat.bz2" \
-    -O /tmp/sp68.dat.bz2 \
-    && bzip2 -d /tmp/sp68.dat.bz2 \
-    && mv /tmp/sp68.dat /app/models/shape_predictor_68_face_landmarks.dat \
-    && echo "✅ shape_predictor_68 downloaded"
-
-RUN wget -q \
-    "https://github.com/davisking/dlib-models/raw/master/dlib_face_recognition_resnet_model_v1.dat.bz2" \
-    -O /tmp/facerec.dat.bz2 \
-    && bzip2 -d /tmp/facerec.dat.bz2 \
-    && mv /tmp/facerec.dat /app/models/dlib_face_recognition_resnet_model_v1.dat \
-    && echo "✅ face_recognition_resnet downloaded"
-
+# Copy your app
 COPY Face_server.py .
 
-# Use PORT env variable — Render sets this automatically
-# Default to 10000 which is Render's preferred port
+# Expose port
 EXPOSE 10000
 
-CMD gunicorn \
-    --bind "0.0.0.0:${PORT:-10000}" \
-    --workers 1 \
-    --timeout 120 \
-    --log-level info \
-    Face_server:app
+# Run server
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "120", "Face_server:app"]

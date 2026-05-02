@@ -443,73 +443,128 @@ app.get('/checkins', verifyToken, (req, res) => {
 app.get('/dashboard/stats', verifyToken, async (req, res) => {
   const uid = req.user.id;
   try {
-    const profRows  = await q('SELECT * FROM profile WHERE user_id=?', [uid]);
-    const prof      = profRows[0] || null;
-    const checkins  = await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 30', [uid]);
+    const profRows = await q('SELECT * FROM profile WHERE user_id=?', [uid]);
+    const prof     = profRows[0] || null;
 
-    // Today's check-in (most recent for current date)
-    const todayRows = await q('SELECT * FROM health_checkins WHERE user_id=? AND DATE(created_at)=CURDATE() ORDER BY created_at DESC LIMIT 1', [uid]);
-    const today     = todayRows[0] || null;
+    // Fetch up to 30 most recent check-ins (always sorted newest first)
+    const checkins = await q(
+      'SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 30',
+      [uid]
+    );
 
-    // Last check-in overall (most recent, regardless of date) — used as fallback when no today
-    const lastRow   = checkins[0] || null;
+    const total   = checkins.length;
+    // lastRow = the single most recent check-in ever (our guaranteed fallback)
+    const lastRow = checkins[0] || null;
 
-    const total     = checkins.length;
-    const withScore = checkins.slice(0,7).filter(c=>(c.health_score||0)>0);
-    const avgScore  = withScore.length ? Math.round(withScore.reduce((s,c)=>s+c.health_score,0)/withScore.length) : 0;
-    let streak=0; const dates=checkins.map(c=>new Date(c.created_at).toDateString()); let chk=new Date();
-    while (dates.includes(chk.toDateString())) { streak++; chk.setDate(chk.getDate()-1); }
-    const calorieGoal = calcCalGoal(prof);
-    let bmi=null, bmiLabel='';
-    if (prof?.weight && prof?.height) {
-      const h=prof.height/100; bmi=(prof.weight/(h*h)).toFixed(1); const b=parseFloat(bmi);
-      bmiLabel=b<18.5?'Underweight':b<25?'Normal ✅':b<30?'Overweight':'Obese';
+    // ── "TODAY" detection: robust against UTC/IST timezone offset on Render ──
+    // Strategy: check-in is "today" if it was created within the last 30 hours.
+    // This covers IST (+5:30) users whose midnight check-ins land on yesterday UTC.
+    let todayRow = null;
+    if (lastRow) {
+      const nowMs       = Date.now();
+      const createdMs   = new Date(lastRow.created_at).getTime();
+      const hoursAgo    = (nowMs - createdMs) / (1000 * 60 * 60);
+      if (hoursAgo <= 30) {
+        todayRow = lastRow; // most recent check-in is fresh enough = "today"
+      }
     }
-    const chartData = checkins.slice(0, total>=14?30:7).reverse();
-    const days      = chartData.map(c=>new Date(c.created_at).toLocaleDateString('en-IN',{month:'short',day:'numeric'}));
-    const moodScore = {'Great!':5,'Good':4,'Neutral':3,'Sad/Anxious':1};
 
-    // Helper to format a checkin row as the standard stat object
+    // ── Score: show the LATEST check-in score, not an old average ──
+    // Also compute a 7-day average for the subtitle
+    const latestScore = lastRow ? (lastRow.health_score || 0) : 0;
+    const withScore   = checkins.slice(0, 7).filter(c => (c.health_score || 0) > 0);
+    const avgScore    = withScore.length
+      ? Math.round(withScore.reduce((s, c) => s + c.health_score, 0) / withScore.length)
+      : 0;
+    // Use latest score as primary display; fall back to avg if latest is 0
+    const displayScore = latestScore > 0 ? latestScore : avgScore;
+
+    // ── Streak (robust: compare dates in local-style using UTC date string) ──
+    let streak = 0;
+    const dateSet = new Set(
+      checkins.map(c => new Date(c.created_at).toISOString().slice(0, 10))
+    );
+    let chk = new Date();
+    for (let i = 0; i < 60; i++) {
+      const key = chk.toISOString().slice(0, 10);
+      if (dateSet.has(key)) { streak++; chk.setDate(chk.getDate() - 1); }
+      else if (i === 0) { chk.setDate(chk.getDate() - 1); } // skip today if no check-in yet
+      else break;
+    }
+
+    const calorieGoal = calcCalGoal(prof);
+    let bmi = null, bmiLabel = '';
+    if (prof?.weight && prof?.height) {
+      const h = prof.height / 100;
+      bmi = (prof.weight / (h * h)).toFixed(1);
+      const b = parseFloat(bmi);
+      bmiLabel = b < 18.5 ? 'Underweight' : b < 25 ? 'Normal ✅' : b < 30 ? 'Overweight' : 'Obese';
+    }
+
+    const chartData = checkins.slice(0, total >= 14 ? 30 : 7).reverse();
+    const days      = chartData.map(c =>
+      new Date(c.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
+    );
+    const moodScore = { 'Great!': 5, 'Good': 4, 'Neutral': 3, 'Sad/Anxious': 1 };
+
+    // Helper: format a DB row into the standard stat shape sent to frontend
     function fmtCheckin(c) {
       if (!c) return null;
       return {
-        sleep: c.sleep_quality,
-        sleep_hours: c.sleep_hours,
-        energy: c.energy_level,
-        mood: c.mood,
-        water: c.water_intake,
-        steps: c.steps,
-        calories: c.calories_burned,
-        exercise_done: c.exercise_done,
+        sleep:            c.sleep_quality,
+        sleep_hours:      c.sleep_hours,
+        energy:           c.energy_level,
+        mood:             c.mood,
+        water:            c.water_intake,
+        steps:            c.steps,
+        calories:         c.calories_burned,
+        exercise_done:    c.exercise_done,
         exercise_minutes: c.exercise_minutes,
-        exercise_type: c.exercise_type,
-        body_weight: c.body_weight,
-        heart_rate: c.heart_rate,
-        health_score: c.health_score
+        exercise_type:    c.exercise_type,
+        body_weight:      c.body_weight,
+        heart_rate:       c.heart_rate,
+        health_score:     c.health_score,
       };
     }
 
     res.json({
-      hasData: total > 0,
-      score: avgScore,
+      hasData:       total > 0,
+      score:         displayScore,   // ← always the latest score
+      avgScore,                      // ← 7-day average (for subtitle)
       totalCheckins: total,
       streak,
       calorieGoal,
       bmi,
       bmiLabel,
-      profile: prof ? {age:prof.age,weight:prof.weight,height:prof.height,blood_group:prof.blood_group,gender:prof.gender,activity_level:prof.activity_level} : null,
-      today: fmtCheckin(today),   // today's check-in or null
-      last:  fmtCheckin(lastRow), // most recent check-in ever (fallback)
+      profile: prof
+        ? { age: prof.age, weight: prof.weight, height: prof.height,
+            blood_group: prof.blood_group, gender: prof.gender,
+            activity_level: prof.activity_level }
+        : null,
+      today: fmtCheckin(todayRow),  // recent check-in (≤30h) or null
+      last:  fmtCheckin(lastRow),   // ALWAYS the most recent ever — never null if total>0
       charts: {
         days,
-        scoreData: chartData.map(c=>c.health_score||0),
-        moodData:  chartData.map(c=>{for(const[k,v]of Object.entries(moodScore)){if((c.mood||'').includes(k))return v;}return null;}),
-        sleepData: chartData.map(c=>{if(c.sleep_hours>0)return parseFloat(c.sleep_hours);const sq=c.sleep_quality||'';if(sq.includes('8+'))return 8.5;if(sq.includes('7-8')||sq.includes('7–8'))return 7.5;if(sq.includes('5-6')||sq.includes('5–6'))return 5.5;return null;}),
-        stepsData: chartData.map(c=>c.steps||0),
-        calData:   chartData.map(c=>c.calories_burned||0),
-        waterData: chartData.map(c=>c.water_intake||0),
+        scoreData: chartData.map(c => c.health_score || 0),
+        moodData:  chartData.map(c => {
+          for (const [k, v] of Object.entries(moodScore)) {
+            if ((c.mood || '').includes(k)) return v;
+          }
+          return null;
+        }),
+        sleepData: chartData.map(c => {
+          if (c.sleep_hours > 0) return parseFloat(c.sleep_hours);
+          const sq = c.sleep_quality || '';
+          if (sq.includes('8+')) return 8.5;
+          if (sq.includes('7-8') || sq.includes('7–8')) return 7.5;
+          if (sq.includes('5-6') || sq.includes('5–6')) return 5.5;
+          return null;
+        }),
+        stepsData: chartData.map(c => c.steps || 0),
+        calData:   chartData.map(c => c.calories_burned || 0),
+        waterData: chartData.map(c => c.water_intake || 0),
       },
-      chartDays: total>=14?30:7,
+      chartDays: total >= 14 ? 30 : 7,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
