@@ -446,8 +446,14 @@ app.get('/dashboard/stats', verifyToken, async (req, res) => {
     const profRows  = await q('SELECT * FROM profile WHERE user_id=?', [uid]);
     const prof      = profRows[0] || null;
     const checkins  = await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 30', [uid]);
+
+    // Today's check-in (most recent for current date)
     const todayRows = await q('SELECT * FROM health_checkins WHERE user_id=? AND DATE(created_at)=CURDATE() ORDER BY created_at DESC LIMIT 1', [uid]);
     const today     = todayRows[0] || null;
+
+    // Last check-in overall (most recent, regardless of date) — used as fallback when no today
+    const lastRow   = checkins[0] || null;
+
     const total     = checkins.length;
     const withScore = checkins.slice(0,7).filter(c=>(c.health_score||0)>0);
     const avgScore  = withScore.length ? Math.round(withScore.reduce((s,c)=>s+c.health_score,0)/withScore.length) : 0;
@@ -462,10 +468,38 @@ app.get('/dashboard/stats', verifyToken, async (req, res) => {
     const chartData = checkins.slice(0, total>=14?30:7).reverse();
     const days      = chartData.map(c=>new Date(c.created_at).toLocaleDateString('en-IN',{month:'short',day:'numeric'}));
     const moodScore = {'Great!':5,'Good':4,'Neutral':3,'Sad/Anxious':1};
+
+    // Helper to format a checkin row as the standard stat object
+    function fmtCheckin(c) {
+      if (!c) return null;
+      return {
+        sleep: c.sleep_quality,
+        sleep_hours: c.sleep_hours,
+        energy: c.energy_level,
+        mood: c.mood,
+        water: c.water_intake,
+        steps: c.steps,
+        calories: c.calories_burned,
+        exercise_done: c.exercise_done,
+        exercise_minutes: c.exercise_minutes,
+        exercise_type: c.exercise_type,
+        body_weight: c.body_weight,
+        heart_rate: c.heart_rate,
+        health_score: c.health_score
+      };
+    }
+
     res.json({
-      hasData:total>0, score:avgScore, totalCheckins:total, streak, calorieGoal, bmi, bmiLabel,
+      hasData: total > 0,
+      score: avgScore,
+      totalCheckins: total,
+      streak,
+      calorieGoal,
+      bmi,
+      bmiLabel,
       profile: prof ? {age:prof.age,weight:prof.weight,height:prof.height,blood_group:prof.blood_group,gender:prof.gender,activity_level:prof.activity_level} : null,
-      today: today ? {sleep:today.sleep_quality,sleep_hours:today.sleep_hours,energy:today.energy_level,mood:today.mood,water:today.water_intake,steps:today.steps,calories:today.calories_burned,exercise_done:today.exercise_done,exercise_minutes:today.exercise_minutes,exercise_type:today.exercise_type,body_weight:today.body_weight,heart_rate:today.heart_rate,health_score:today.health_score} : null,
+      today: fmtCheckin(today),   // today's check-in or null
+      last:  fmtCheckin(lastRow), // most recent check-in ever (fallback)
       charts: {
         days,
         scoreData: chartData.map(c=>c.health_score||0),

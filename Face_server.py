@@ -1,16 +1,25 @@
+"""
+VitaAI Face Server — Robust & Practical
+- Face Detection    → dlib HOG (reliable for frontal webcam faces)
+- Face Identity     → dlib 128D ResNet + stores 3 encodings per user
+- Emotion Detection → FER library
+- Storage           → MongoDB Atlas
+"""
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from deepface import DeepFace
+from fer import FER
 from pymongo import MongoClient
 import numpy as np
-import base64, os, tempfile, cv2
+import base64, os, cv2
 from PIL import Image
 from io import BytesIO
+import dlib
 
 app = Flask(__name__)
 CORS(app)
 
-
+# ── MONGODB ───────────────────────────────────────────────
 MONGO_URI = os.environ.get("MONGO_URI", "")
 _client   = None
 _col      = None
@@ -23,17 +32,35 @@ def get_col():
     return _col
 
 def db_load(email: str):
-    doc = get_col().find_one({"email": email}, {"embedding": 1})
-    if doc and "embedding" in doc:
-        return np.array(doc["embedding"], dtype=np.float64)
+    """Load all stored encodings for a user (up to 3)."""
+    doc = get_col().find_one({"email": email}, {"encodings": 1})
+    if doc and "encodings" in doc:
+        return [np.array(e, dtype=np.float64) for e in doc["encodings"]]
     return None
 
-def db_save(email: str, embedding: np.ndarray):
-    get_col().update_one(
-        {"email": email},
-        {"$set": {"email": email, "embedding": embedding.tolist()}},
-        upsert=True,
-    )
+def db_save_encoding(email: str, encoding: np.ndarray):
+    """
+    Store up to 3 encodings per user.
+    Each registration adds one — up to max 3.
+    This makes verification robust across lighting/angle changes.
+    """
+    doc = get_col().find_one({"email": email}, {"encodings": 1})
+    if doc and "encodings" in doc:
+        existing = doc["encodings"]
+        if len(existing) >= 3:
+            # Replace oldest encoding (keep last 2 + new one)
+            existing = existing[-2:]
+        existing.append(encoding.tolist())
+        get_col().update_one(
+            {"email": email},
+            {"$set": {"encodings": existing}}
+        )
+    else:
+        get_col().update_one(
+            {"email": email},
+            {"$set": {"email": email, "encodings": [encoding.tolist()]}},
+            upsert=True,
+        )
 
 def db_count() -> int:
     try:
@@ -41,127 +68,121 @@ def db_count() -> int:
     except Exception:
         return -1
 
-# ── OPENCV FACE DETECTOR ──────────────────────────────────
-detector = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+# ── LOAD DLIB MODELS ──────────────────────────────────────
+DLIB_PREDICTOR = "/app/models/shape_predictor_68_face_landmarks.dat"
+DLIB_FACE_REC  = "/app/models/dlib_face_recognition_resnet_model_v1.dat"
 
-print("Loading DeepFace models...")
-DeepFace.build_model("Facenet")
-DeepFace.build_model("Emotion")
-print("✅ Models ready!")
+print("Loading dlib models...")
+hog_detector = dlib.get_frontal_face_detector()
+predictor    = dlib.shape_predictor(DLIB_PREDICTOR)
+face_rec     = dlib.face_recognition_model_v1(DLIB_FACE_REC)
+print("✅ dlib models ready!")
 
-# ── HELPERS ───────────────────────────────────────────────
-def b64_to_array(b64: str) -> np.ndarray:
+emotion_detector = FER(mtcnn=False)
+print("✅ FER emotion detector ready!")
+
+# ── IMAGE HELPERS ─────────────────────────────────────────
+def b64_to_rgb(b64: str) -> np.ndarray:
     if "," in b64:
         b64 = b64.split(",")[1]
-    img = Image.open(BytesIO(base64.b64decode(b64))).convert("RGB")
-    return np.array(img)
+    return np.array(Image.open(BytesIO(base64.b64decode(b64))).convert("RGB"))
 
-def detect_and_crop(img_array: np.ndarray):
-    gray      = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-    face_rect = None
-    for scale, neighbors, min_size in [
-        (1.05, 3, (20, 20)),
-        (1.08, 4, (40, 40)),
-        (1.10, 5, (60, 60)),
-    ]:
-        faces = detector.detectMultiScale(
-            gray, scaleFactor=scale, minNeighbors=neighbors,
-            minSize=min_size, flags=cv2.CASCADE_SCALE_IMAGE,
-        )
-        if len(faces) > 0:
-            face_rect = max(faces, key=lambda f: f[2] * f[3])
-            print(f"  ✅ Face detected: {face_rect[2]}x{face_rect[3]} px")
-            break
-    if face_rect is None:
+def b64_to_bgr(b64: str) -> np.ndarray:
+    return cv2.cvtColor(b64_to_rgb(b64), cv2.COLOR_RGB2BGR)
+
+# ── DLIB FACE ENCODING ────────────────────────────────────
+def get_face_encoding(img_rgb: np.ndarray):
+    """
+    Detect face → get 128D encoding.
+    Tries upsample=1 first (better for small/distant faces),
+    falls back to upsample=0 for speed if face is large.
+    """
+    # Resize if too large (speeds up detection)
+    h, w = img_rgb.shape[:2]
+    if w > 640:
+        scale   = 640 / w
+        img_rgb = cv2.resize(img_rgb, (640, int(h * scale)))
+
+    # Try with upsampling first (catches smaller/further faces)
+    dets = hog_detector(img_rgb, 1)
+
+    if len(dets) == 0:
+        # Try without upsampling (faster, for close faces)
+        dets = hog_detector(img_rgb, 0)
+
+    if len(dets) == 0:
         print("  ⚠️ No face detected")
         return None
-    x, y, w, h = face_rect
-    pad_x = int(w * 0.20); pad_y = int(h * 0.20)
-    x1 = max(0, x - pad_x); y1 = max(0, y - pad_y)
-    x2 = min(img_array.shape[1], x + w + pad_x)
-    y2 = min(img_array.shape[0], y + h + pad_y)
-    crop    = img_array[y1:y2, x1:x2]
-    lab     = cv2.cvtColor(crop, cv2.COLOR_RGB2LAB)
-    l, a, b = cv2.split(lab)
-    clahe   = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
-    crop    = cv2.cvtColor(cv2.merge((clahe.apply(l), a, b)), cv2.COLOR_LAB2RGB)
-    crop    = cv2.resize(crop, (224, 224), interpolation=cv2.INTER_CUBIC)
-    return crop
 
-def save_temp(img_array: np.ndarray) -> str:
-    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-    Image.fromarray(img_array).save(tmp.name, quality=95)
-    tmp.close()
-    return tmp.name
+    # Pick largest face
+    det   = max(dets, key=lambda d: (d.right()-d.left()) * (d.bottom()-d.top()))
+    pw    = det.right() - det.left()
+    ph    = det.bottom() - det.top()
+    print(f"  ✅ Face detected: {pw}x{ph} px")
 
-def get_embedding(img_path: str):
+    # Get 68 landmarks + compute 128D encoding
+    shape    = predictor(img_rgb, det)
+    encoding = face_rec.compute_face_descriptor(img_rgb, shape, num_jitters=2)
+    # num_jitters=2: slightly jitters image for more stable encoding
+    return np.array(encoding, dtype=np.float64)
+
+def best_distance(stored_encodings: list, live_enc: np.ndarray) -> float:
+    """
+    Compare live encoding against ALL stored encodings.
+    Return the BEST (smallest) distance.
+    This is how robust multi-encoding systems work —
+    if ANY stored encoding matches, the person is verified.
+    """
+    distances = [np.linalg.norm(s - live_enc) for s in stored_encodings]
+    best = min(distances)
+    print(f"  📊 All distances: {[round(d, 4) for d in distances]}")
+    print(f"  📊 Best distance: {best:.4f}")
+    return best
+
+# ── FER EMOTION DETECTION ─────────────────────────────────
+def detect_emotion(img_bgr: np.ndarray):
+    """FER emotion detection — same approach as emotionDetection.py from zip."""
     try:
-        result = DeepFace.represent(
-            img_path=img_path, model_name="Facenet",
-            enforce_detection=False, detector_backend="skip",
-        )
-        return np.array(result[0]["embedding"], dtype=np.float64)
+        results = emotion_detector.detect_emotions(img_bgr)
+
+        if not results:
+            print("  ⚠️ FER: No emotions detected")
+            return "neutral", {}
+
+        best     = max(results, key=lambda r: r["box"][2] * r["box"][3])
+        emotions = best["emotions"]
+        dominant = max(emotions, key=emotions.get)
+        score    = emotions[dominant]
+
+        print(f"  😊 FER: {emotions}")
+        print(f"  🏆 Dominant: {dominant} ({score:.3f})")
+
+        # If neutral but not very confident, check for subtle emotion
+        if dominant == "neutral" and score < 0.70:
+            others = {k: v for k, v in emotions.items() if k != "neutral"}
+            if others:
+                second = max(others, key=others.get)
+                if emotions[second] >= 0.15:
+                    print(f"  → Override: {second} ({emotions[second]:.3f})")
+                    return second, emotions
+
+        return dominant, emotions
+
     except Exception as e:
-        print(f"  ⚠️ Embedding error: {e}")
-        return None
-
-def cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
-    denom = np.linalg.norm(a) * np.linalg.norm(b)
-    return float(1.0 - np.dot(a, b) / denom) if denom > 1e-10 else 1.0
-
-def to_float(val) -> float:
-    return round(float(val.item() if hasattr(val, "item") else val), 4)
-
-def smart_emotion(raw: dict) -> str:
-    e        = {k: to_float(v) for k, v in raw.items()}
-    happy    = e.get("happy",    0.0)
-    sad      = e.get("sad",      0.0)
-    angry    = e.get("angry",    0.0)
-    fear     = e.get("fear",     0.0)
-    surprise = e.get("surprise", 0.0)
-    disgust  = e.get("disgust",  0.0)
-    neutral  = e.get("neutral",  100.0)
-
-    print(f"  😊 happy={happy} sad={sad} angry={angry} fear={fear} surprise={surprise} neutral={neutral}")
-
-    # Tier 1 — strong >= 30%
-    if happy    >= 30.0: return "happy"
-    if sad      >= 30.0: return "sad"
-    if angry    >= 30.0: return "angry"
-    if fear     >= 30.0: return "fear"
-    if surprise >= 30.0: return "surprise"
-    if disgust  >= 30.0: return "disgust"
-
-    # Tier 2 — moderate >= 5% when not overwhelmingly neutral
-    if neutral < 95.0:
-        if happy    >= 5.0: return "happy"
-        if sad      >= 5.0: return "sad"
-        if angry    >= 5.0: return "angry"
-        if fear     >= 5.0: return "fear"
-        if surprise >= 5.0: return "surprise"
-        if disgust  >= 1.0: return "disgust"
-
-    # Tier 3 — subtle dominant
-    non_neutral = {"happy": happy, "sad": sad, "angry": angry,
-                   "fear": fear, "surprise": surprise, "disgust": disgust}
-    top  = max(non_neutral, key=lambda k: non_neutral[k])
-    rest = sum(v for k, v in non_neutral.items() if k != top)
-    if non_neutral[top] >= 2.0 and non_neutral[top] > rest * 3:
-        print(f"  → Subtle: {top}")
-        return top
-
-    return "neutral"
+        print(f"  ⚠️ FER error: {e}")
+        return "neutral", {}
 
 # ── ROUTES ────────────────────────────────────────────────
 
 @app.route("/", methods=["GET", "HEAD"])
 def index():
     return jsonify({
-        "status":       "VitaAI Face Server running ✅",
-        "storage":      "MongoDB Atlas",
-        "faces_stored": db_count(),
+        "status":        "VitaAI Face Server ✅",
+        "face_detect":   "dlib HOG",
+        "identity":      "dlib 128D ResNet (3 encodings/user)",
+        "emotion":       "FER library",
+        "storage":       "MongoDB Atlas",
+        "faces_stored":  db_count(),
     }), 200
 
 
@@ -170,7 +191,6 @@ def face_register():
     d       = request.get_json(silent=True) or {}
     email   = d.get("email", "").strip()
     img_b64 = d.get("img", "")
-
     print(f"\n📝 REGISTER: {email!r}")
 
     if not email:
@@ -179,27 +199,30 @@ def face_register():
         return jsonify({"ok": False, "msg": "Image is required."}), 400
 
     try:
-        img_array = b64_to_array(img_b64)
+        img_rgb = b64_to_rgb(img_b64)
     except Exception as e:
         return jsonify({"ok": False, "msg": f"Invalid image: {e}"}), 400
 
-    face = detect_and_crop(img_array)
-    if face is None:
-        return jsonify({"ok": False, "msg": "No face detected. Come closer, look straight at camera, ensure good lighting."})
+    encoding = get_face_encoding(img_rgb)
+    if encoding is None:
+        return jsonify({
+            "ok":  False,
+            "msg": "No face detected. Come closer, look straight at camera, ensure good lighting."
+        })
 
-    tmp = save_temp(face)
     try:
-        emb = get_embedding(tmp)
-        if emb is None:
-            return jsonify({"ok": False, "msg": "Could not process face. Please try again."})
-        db_save(email, emb)
-        print(f"  ✅ Registered: {email} | Total: {db_count()}")
-        return jsonify({"ok": True, "msg": "Face registered successfully!"})
+        db_save_encoding(email, encoding)
+
+        # Tell user how many encodings stored
+        doc   = get_col().find_one({"email": email}, {"encodings": 1})
+        count = len(doc["encodings"]) if doc else 1
+
+        msg = "Face registered!" if count == 1 else f"Face updated ({count}/3 angles stored — more = better accuracy!)"
+        print(f"  ✅ {email} has {count} encodings stored")
+        return jsonify({"ok": True, "msg": msg, "encodings_stored": count})
     except Exception as e:
         print(f"  ❌ DB error: {e}")
         return jsonify({"ok": False, "msg": "Database error. Please try again."}), 500
-    finally:
-        if os.path.exists(tmp): os.unlink(tmp)
 
 
 @app.route("/face/verify", methods=["POST"])
@@ -207,7 +230,6 @@ def face_verify():
     d       = request.get_json(silent=True) or {}
     email   = d.get("email", "").strip()
     img_b64 = d.get("img", "")
-
     print(f"\n🔍 VERIFY: {email!r}")
 
     if not email:
@@ -215,83 +237,69 @@ def face_verify():
     if not img_b64:
         return jsonify({"ok": False, "msg": "Image is required."}), 400
 
-    stored_emb = db_load(email)
-    if stored_emb is None:
+    stored_encs = db_load(email)
+    if stored_encs is None:
         return jsonify({"ok": False, "msg": "Face not registered. Please sign up first."})
 
     try:
-        img_array = b64_to_array(img_b64)
+        img_rgb = b64_to_rgb(img_b64)
     except Exception as e:
         return jsonify({"ok": False, "msg": f"Invalid image: {e}"}), 400
 
-    face = detect_and_crop(img_array)
-    if face is None:
-        return jsonify({"ok": False, "msg": "No face detected. Come closer, look straight at camera, ensure good lighting."})
-
-    tmp = save_temp(face)
-    try:
-        emb = get_embedding(tmp)
-        if emb is None:
-            return jsonify({"ok": False, "msg": "Could not process face. Please try again."})
-        dist = cosine_distance(stored_emb, emb)
-        ok   = dist < 0.55
-        print(f"  📊 Distance: {dist:.4f} | {'✅ PASS' if ok else '❌ FAIL'}")
+    live_enc = get_face_encoding(img_rgb)
+    if live_enc is None:
         return jsonify({
-            "ok":  bool(ok),
-            "msg": "Face verified! Welcome back 👋" if ok else "Face did not match. Please try again.",
+            "ok":  False,
+            "msg": "No face detected. Come closer, look straight at camera."
         })
-    finally:
-        if os.path.exists(tmp): os.unlink(tmp)
+
+    dist = best_distance(stored_encs, live_enc)
+
+    # Threshold: 0.50 strict — adjustable here
+    # < 0.45 = very confident match
+    # 0.45-0.50 = good match
+    # > 0.50 = likely different person
+    THRESHOLD = 0.50
+    ok        = dist < THRESHOLD
+
+    print(f"  {'✅ PASS' if ok else '❌ FAIL'} (threshold={THRESHOLD})")
+
+    return jsonify({
+        "ok":  bool(ok),
+        "msg": "Face verified! Welcome back 👋" if ok else "Face did not match. Please try again.",
+    })
 
 
 @app.route("/face/emotion", methods=["POST"])
 def face_emotion():
-    print("\n😊 EMOTION")
+    print("\n😊 EMOTION DETECT")
     d       = request.get_json(silent=True) or {}
     img_b64 = d.get("img", "")
 
     if not img_b64:
-        return jsonify({"ok": False, "emotion": "neutral", "msg": "Image is required."}), 400
+        return jsonify({"ok": False, "emotion": "neutral", "msg": "Image required."}), 400
 
     try:
-        img_array = b64_to_array(img_b64)
+        img_bgr = b64_to_bgr(img_b64)
     except Exception as e:
         return jsonify({"ok": False, "emotion": "neutral", "msg": f"Invalid image: {e}"}), 400
 
-    face = detect_and_crop(img_array)
-    if face is None:
-        return jsonify({"ok": False, "emotion": "neutral", "msg": "No face detected. Move closer to the camera."})
+    emotion, scores = detect_emotion(img_bgr)
+    print(f"  🏆 Final: {emotion}")
 
-    tmp = save_temp(face)
-    try:
-        result = DeepFace.analyze(
-            img_path=tmp, actions=["emotion"],
-            enforce_detection=False, detector_backend="skip", silent=True,
-        )
-        if isinstance(result, list):
-            result = result[0]
-        raw     = result.get("emotion", {})
-        clean   = {k: to_float(v) for k, v in raw.items()}
-        emotion = smart_emotion(raw)
-        print(f"  🏆 Final: {emotion}")
-        return jsonify({
-            "ok":      True,
-            "emotion": emotion,
-            "scores": {
-                "happy":    clean.get("happy",    0),
-                "sad":      clean.get("sad",      0),
-                "angry":    clean.get("angry",    0),
-                "fear":     clean.get("fear",     0),
-                "surprise": clean.get("surprise", 0),
-                "disgust":  clean.get("disgust",  0),
-                "neutral":  clean.get("neutral",  0),
-            },
-        })
-    except Exception as e:
-        print(f"  ⚠️ Emotion error: {e}")
-        return jsonify({"ok": False, "emotion": "neutral", "msg": str(e)})
-    finally:
-        if os.path.exists(tmp): os.unlink(tmp)
+    return jsonify({
+        "ok":      True,
+        "emotion": emotion,
+        "scores": {
+            "happy":    round(float(scores.get("happy",    0)), 4),
+            "sad":      round(float(scores.get("sad",      0)), 4),
+            "angry":    round(float(scores.get("angry",    0)), 4),
+            "fear":     round(float(scores.get("fear",     0)), 4),
+            "surprise": round(float(scores.get("surprise", 0)), 4),
+            "disgust":  round(float(scores.get("disgust",  0)), 4),
+            "neutral":  round(float(scores.get("neutral",  0)), 4),
+        },
+    })
 
 
 # ── ENTRYPOINT ────────────────────────────────────────────
@@ -299,6 +307,9 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print("=" * 50)
     print(f"  VitaAI Face Server  —  port {port}")
-    print(f"  MongoDB faces: {db_count()}")
+    print(f"  Identity    : dlib 128D (3 encodings/user)")
+    print(f"  Emotion     : FER library")
+    print(f"  Storage     : MongoDB Atlas")
+    print(f"  Faces stored: {db_count()}")
     print("=" * 50)
     app.run(host="0.0.0.0", port=port, debug=False)
