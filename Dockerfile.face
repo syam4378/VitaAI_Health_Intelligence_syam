@@ -1,6 +1,6 @@
 FROM python:3.9-slim
 
-# System deps for dlib (needs cmake + build tools) + OpenCV + FER
+# System deps for dlib + OpenCV + FER
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python packages including dlib
+# Step 1: Install everything EXCEPT dlib first
 RUN pip install --no-cache-dir \
     flask==2.2.5 \
     flask-cors==3.0.10 \
@@ -26,11 +26,16 @@ RUN pip install --no-cache-dir \
     numpy==1.23.5 \
     Pillow==9.5.0 \
     opencv-python-headless==4.7.0.72 \
-    fer==22.5.1 \
-    dlib==19.24.2
+    fer==22.5.1
+
+# Step 2: Install dlib separately with cmake policy fix
+# dlib 19.24.6 fixes the pybind11 CMake compatibility issue
+RUN pip install --no-cache-dir \
+    "cmake>=3.25" \
+    && CMAKE_POLICY_VERSION_MINIMUM=3.5 pip install --no-cache-dir \
+    dlib==19.24.6
 
 # Download dlib model files at build time
-# No download delay on cold start / Render deploy
 RUN mkdir -p /app/models
 
 RUN wget -q \
