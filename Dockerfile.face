@@ -1,6 +1,5 @@
 FROM python:3.9-slim
 
-# System libs for OpenCV + download tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgl1 \
@@ -13,7 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Python dependencies — pure ONNX stack, no TensorFlow
 RUN pip install --no-cache-dir \
     flask==2.2.5 \
     flask-cors==3.0.10 \
@@ -27,21 +25,18 @@ RUN pip install --no-cache-dir \
 # ── DOWNLOAD MODELS ───────────────────────────────────────
 RUN mkdir -p /app/models
 
-# 1. SCRFD-2.5G with landmarks (bnkps) — correct model, correct name, no rename trick
-#    Direct file from InsightFace SCRFD model zoo
-RUN wget -q --show-progress \
-    -O /app/models/scrfd_2.5g_bnkps.onnx \
-    "https://github.com/deepinsight/insightface/releases/download/v0.7/scrfd_2.5g_bnkps.onnx"
-
-# 2. ArcFace w600k_r50 (~166MB) — from buffalo_l pack
+# buffalo_l.zip contains BOTH scrfd_2.5g_bnkps.onnx AND w600k_r50.onnx
+# Download once, extract both — saves bandwidth
 RUN wget -q --show-progress \
     -O /tmp/buffalo_l.zip \
     "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip" \
     && unzip -o /tmp/buffalo_l.zip -d /tmp/buffalo_l/ \
+    && ls /tmp/buffalo_l/ \
+    && cp /tmp/buffalo_l/det_10g.onnx /app/models/scrfd_2.5g_bnkps.onnx \
     && cp /tmp/buffalo_l/w600k_r50.onnx /app/models/arcface_w600k_r50.onnx \
     && rm -rf /tmp/buffalo_l.zip /tmp/buffalo_l/
 
-# 3. Emotion mini-Xception (~15MB) — direct ONNX
+# Emotion mini-Xception (~15MB)
 RUN wget -q --show-progress \
     -O /app/models/emotion_miniXception.onnx \
     "https://github.com/priya-dwivedi/face_and_emotion_detection/raw/master/emotion_detector_models/emotion_miniXception.onnx"
