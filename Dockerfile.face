@@ -34,10 +34,10 @@ RUN wget -q --show-progress \
     && cp /tmp/buffalo_l/w600k_r50.onnx /app/models/arcface_w600k_r50.onnx \
     && rm -rf /tmp/buffalo_l.zip /tmp/buffalo_l/
 
-# 2. Emotion FERPlus-8 — stable ONNX model zoo, (1,1,64,64) input, 8 classes
+# 2. Emotion FERPlus-8 — from HuggingFace onnxmodelzoo (35MB, stable)
 RUN wget -q --show-progress \
     -O /app/models/emotion_miniXception.onnx \
-    "https://github.com/onnx/models/raw/main/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx"
+    "https://huggingface.co/onnxmodelzoo/emotion-ferplus-8/resolve/main/emotion-ferplus-8.onnx"
 
 # ── APP ───────────────────────────────────────────────────
 COPY Face_server.py .
