@@ -1,17 +1,19 @@
 FROM python:3.9-slim
 
-# Install only REQUIRED system libs for OpenCV
+# System libs for OpenCV + download tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgl1 \
     libsm6 \
     libxext6 \
     libxrender-dev \
+    wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install Python dependencies
+# Python dependencies — pure ONNX stack, no TensorFlow
 RUN pip install --no-cache-dir \
     flask==2.2.5 \
     flask-cors==3.0.10 \
@@ -20,13 +22,33 @@ RUN pip install --no-cache-dir \
     numpy==1.23.5 \
     Pillow==9.5.0 \
     opencv-python-headless==4.7.0.72 \
-    fer==22.5.1
+    onnxruntime==1.16.3
 
-# Copy your app
+# ── DOWNLOAD MODELS ───────────────────────────────────────
+RUN mkdir -p /app/models
+
+# 1. SCRFD-2.5G with landmarks (bnkps) — correct model, correct name, no rename trick
+#    Direct file from InsightFace SCRFD model zoo
+RUN wget -q --show-progress \
+    -O /app/models/scrfd_2.5g_bnkps.onnx \
+    "https://github.com/deepinsight/insightface/releases/download/v0.7/scrfd_2.5g_bnkps.onnx"
+
+# 2. ArcFace w600k_r50 (~166MB) — from buffalo_l pack
+RUN wget -q --show-progress \
+    -O /tmp/buffalo_l.zip \
+    "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip" \
+    && unzip -o /tmp/buffalo_l.zip -d /tmp/buffalo_l/ \
+    && cp /tmp/buffalo_l/w600k_r50.onnx /app/models/arcface_w600k_r50.onnx \
+    && rm -rf /tmp/buffalo_l.zip /tmp/buffalo_l/
+
+# 3. Emotion mini-Xception (~15MB) — direct ONNX
+RUN wget -q --show-progress \
+    -O /app/models/emotion_miniXception.onnx \
+    "https://github.com/priya-dwivedi/face_and_emotion_detection/raw/master/emotion_detector_models/emotion_miniXception.onnx"
+
+# ── APP ───────────────────────────────────────────────────
 COPY Face_server.py .
 
-# Expose port
 EXPOSE 10000
 
-# Run server
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "120", "Face_server:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "180", "Face_server:app"]

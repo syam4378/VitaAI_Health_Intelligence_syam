@@ -1,22 +1,39 @@
-"""
-VitaAI Face Server — Simple & Reliable
-- Face Detection    → OpenCV Haar Cascade
-- Face Identity     → OpenCV ORB feature matching (no dlib, no DeepFace)
-- Emotion Detection → FER library
-- Storage           → MongoDB Atlas
-"""
+
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from fer import FER
 from pymongo import MongoClient
 import numpy as np
 import base64, os, cv2
 from PIL import Image
 from io import BytesIO
+from datetime import datetime
+import onnxruntime as ort
 
 app = Flask(__name__)
 CORS(app)
+
+# ── CONFIG ────────────────────────────────────────────────
+MODELS_DIR      = "/app/models"
+SCRFD_PATH      = f"{MODELS_DIR}/scrfd_2.5g_bnkps.onnx"    # ~12 MB, fast + accurate
+ARCFACE_PATH    = f"{MODELS_DIR}/arcface_w600k_r50.onnx"    # ~166 MB, 512-D embeddings
+EMOTION_PATH    = f"{MODELS_DIR}/emotion_miniXception.onnx" # ~15 MB
+MODEL_VERSION   = "scrfd+arcface+v1"
+
+SIMILARITY_THRESHOLD = 0.45   # cosine similarity (stricter than 0.40)
+MIN_FACE_SIZE        = 60     # px — reject faces smaller than this
+BLUR_THRESHOLD       = 100.0  # Laplacian variance — reject blurry images
+
+EMOTION_LABELS = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
+
+# ArcFace 5-point reference landmarks for 112×112 canonical alignment
+ARCFACE_REF = np.array([
+    [38.2946, 51.6963],
+    [73.5318, 51.5014],
+    [56.0252, 71.7366],
+    [41.5493, 92.3655],
+    [70.7299, 92.2041],
+], dtype=np.float32)
 
 # ── MONGODB ───────────────────────────────────────────────
 MONGO_URI = os.environ.get("MONGO_URI", "")
@@ -28,27 +45,33 @@ def get_col():
     if _col is None:
         _client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
         _col    = _client["vitaai"]["faces"]
+        _col.create_index("email", unique=True)
     return _col
 
 def db_load(email: str):
-    doc = get_col().find_one({"email": email}, {"descriptors": 1})
-    if doc and "descriptors" in doc:
-        return [np.array(d, dtype=np.uint8) for d in doc["descriptors"]]
+    doc = get_col().find_one({"email": email}, {"embeddings": 1})
+    if doc and "embeddings" in doc:
+        return [np.array(e["vec"], dtype=np.float32) for e in doc["embeddings"]]
     return None
 
-def db_save(email: str, descriptor: np.ndarray):
-    """Store up to 3 descriptors per user for robustness."""
-    doc = get_col().find_one({"email": email}, {"descriptors": 1})
-    if doc and "descriptors" in doc:
-        existing = doc["descriptors"]
+def db_save(email: str, embedding: np.ndarray):
+    """Store up to 3 embeddings per user with timestamp + model version."""
+    doc = get_col().find_one({"email": email}, {"embeddings": 1})
+    emb_entry = {
+        "vec":   embedding.tolist(),
+        "ts":    datetime.utcnow().isoformat(),
+        "model": MODEL_VERSION,
+    }
+    if doc and "embeddings" in doc:
+        existing = doc["embeddings"]
         if len(existing) >= 3:
-            existing = existing[-2:]
-        existing.append(descriptor.tolist())
-        get_col().update_one({"email": email}, {"$set": {"descriptors": existing}})
+            existing = existing[-2:]   # keep last 2, add new → rolling window
+        existing.append(emb_entry)
+        get_col().update_one({"email": email}, {"$set": {"embeddings": existing}})
     else:
         get_col().update_one(
             {"email": email},
-            {"$set": {"email": email, "descriptors": [descriptor.tolist()]}},
+            {"$set": {"email": email, "embeddings": [emb_entry]}},
             upsert=True,
         )
 
@@ -58,112 +81,306 @@ def db_count() -> int:
     except Exception:
         return -1
 
-# ── OPENCV MODELS ─────────────────────────────────────────
-face_cascade = cv2.CascadeClassifier(
+# ── LOAD MODELS ───────────────────────────────────────────
+scrfd_sess   = None
+arcface_sess = None
+emotion_sess = None
+
+def load_models():
+    global scrfd_sess, arcface_sess, emotion_sess
+    opts = ort.SessionOptions()
+    opts.inter_op_num_threads = 1
+    opts.intra_op_num_threads = 2
+
+    if os.path.exists(SCRFD_PATH):
+        scrfd_sess = ort.InferenceSession(
+            SCRFD_PATH, opts, providers=["CPUExecutionProvider"])
+        print("✅ SCRFD ONNX loaded")
+    else:
+        print("⚠️  SCRFD missing — OpenCV Haar fallback active")
+
+    if os.path.exists(ARCFACE_PATH):
+        arcface_sess = ort.InferenceSession(
+            ARCFACE_PATH, opts, providers=["CPUExecutionProvider"])
+        print("✅ ArcFace ONNX loaded")
+    else:
+        print("❌ ArcFace model missing!")
+
+    if os.path.exists(EMOTION_PATH):
+        emotion_sess = ort.InferenceSession(
+            EMOTION_PATH, opts, providers=["CPUExecutionProvider"])
+        print("✅ Emotion ONNX loaded")
+    else:
+        print("⚠️  Emotion ONNX missing — variance fallback active")
+
+load_models()
+
+# OpenCV Haar — last-resort fallback when SCRFD is unavailable
+haar_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
-orb = cv2.ORB_create(nfeatures=500)
-
-# FER emotion detector
-emotion_detector = FER(mtcnn=False)
-
-print("✅ OpenCV face detector ready!")
-print("✅ ORB feature extractor ready!")
-print("✅ FER emotion detector ready!")
 
 # ── IMAGE HELPERS ─────────────────────────────────────────
 def b64_to_bgr(b64: str) -> np.ndarray:
     if "," in b64:
         b64 = b64.split(",")[1]
-    img_rgb = np.array(Image.open(BytesIO(base64.b64decode(b64))).convert("RGB"))
-    return cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+    img = Image.open(BytesIO(base64.b64decode(b64))).convert("RGB")
+    return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
-def detect_face_region(img_bgr: np.ndarray):
-    """Detect and return cropped face as grayscale 128x128."""
-    gray  = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+# ── INPUT VALIDATION ──────────────────────────────────────
+def check_blur(img_bgr: np.ndarray) -> bool:
+    """True = image is sharp enough to process."""
+    gray     = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    variance = cv2.Laplacian(gray, cv2.CV_64F).var()
+    print(f"  📊 Blur variance: {variance:.1f} (threshold={BLUR_THRESHOLD})")
+    return variance >= BLUR_THRESHOLD
 
-    # Try multiple detection passes
-    for scale, neighbors in [(1.1, 5), (1.05, 3), (1.05, 2)]:
-        faces = face_cascade.detectMultiScale(
+# ── NMS ───────────────────────────────────────────────────
+def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float = 0.4):
+    """Standard greedy Non-Maximum Suppression. Returns kept indices."""
+    if len(boxes) == 0:
+        return []
+    x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+    areas  = (x2 - x1) * (y2 - y1)
+    order  = scores.argsort()[::-1]
+    keep   = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        xx1   = np.maximum(x1[i], x1[order[1:]])
+        yy1   = np.maximum(y1[i], y1[order[1:]])
+        xx2   = np.minimum(x2[i], x2[order[1:]])
+        yy2   = np.minimum(y2[i], y2[order[1:]])
+        inter = np.maximum(0, xx2 - xx1) * np.maximum(0, yy2 - yy1)
+        union = areas[i] + areas[order[1:]] - inter
+        iou   = inter / (union + 1e-10)
+        order = order[np.where(iou <= iou_threshold)[0] + 1]
+    return keep
+
+# ── SCRFD DETECTION ───────────────────────────────────────
+def detect_faces(img_bgr: np.ndarray):
+    """
+    SCRFD ONNX face detection with NMS.
+    Returns list of dicts: {box, score, landmarks}
+    Falls back to OpenCV Haar if SCRFD not loaded.
+    """
+    if scrfd_sess is None:
+        return _haar_detect(img_bgr)
+
+    h, w  = img_bgr.shape[:2]
+    scale = min(640 / w, 640 / h)
+    nw, nh = int(w * scale), int(h * scale)
+
+    resized = cv2.resize(img_bgr, (nw, nh))
+    padded  = np.zeros((640, 640, 3), dtype=np.uint8)
+    padded[:nh, :nw] = resized
+
+    inp = padded.astype(np.float32)
+    inp = (inp - 127.5) / 128.0
+    inp = inp.transpose(2, 0, 1)[np.newaxis]   # NCHW
+
+    input_name = scrfd_sess.get_inputs()[0].name
+    try:
+        outputs = scrfd_sess.run(None, {input_name: inp})
+    except Exception as e:
+        print(f"  ⚠️  SCRFD inference error: {e}")
+        return _haar_detect(img_bgr)
+
+    # _bnkps variant: pre-decoded scores (N,), boxes (N,4), landmarks (N,5,2)
+    try:
+        scores_raw = outputs[0].reshape(-1)
+        boxes_raw  = outputs[1].reshape(-1, 4)
+        lms_raw    = outputs[2].reshape(-1, 5, 2) if len(outputs) > 2 else None
+    except Exception as e:
+        print(f"  ⚠️  SCRFD output parse error: {e}")
+        return _haar_detect(img_bgr)
+
+    mask = scores_raw > 0.5
+    if not np.any(mask):
+        return _haar_detect(img_bgr)
+
+    scores_f = scores_raw[mask]
+    boxes_f  = boxes_raw[mask]
+    lms_f    = lms_raw[mask] if lms_raw is not None else None
+
+    keep      = nms(boxes_f, scores_f, iou_threshold=0.4)
+    inv_scale = 1.0 / scale
+    results   = []
+
+    for i in keep:
+        x1, y1, x2, y2 = boxes_f[i] * inv_scale
+        x1 = max(0, int(x1)); y1 = max(0, int(y1))
+        x2 = min(w, int(x2)); y2 = min(h, int(y2))
+        lms = lms_f[i] * inv_scale if lms_f is not None else None
+        results.append({
+            "box":       (x1, y1, x2, y2),
+            "score":     float(scores_f[i]),
+            "landmarks": lms,
+        })
+        print(f"  ✅ Face: ({x1},{y1},{x2},{y2}) score={scores_f[i]:.3f}")
+
+    return results
+
+def _haar_detect(img_bgr: np.ndarray):
+    """OpenCV Haar fallback — no landmarks (strict pipeline will reject)."""
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    for scale, neighbors in [(1.1, 5), (1.05, 3)]:
+        faces = haar_cascade.detectMultiScale(
             gray, scaleFactor=scale, minNeighbors=neighbors, minSize=(30, 30)
         )
         if len(faces) > 0:
-            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-            print(f"  ✅ Face: {w}x{h} at ({x},{y})")
-            # Crop with padding
-            pad = int(min(w, h) * 0.15)
-            x1 = max(0, x - pad); y1 = max(0, y - pad)
-            x2 = min(img_bgr.shape[1], x + w + pad)
-            y2 = min(img_bgr.shape[0], y + h + pad)
-            face = gray[y1:y2, x1:x2]
-            face = cv2.resize(face, (128, 128))
-            face = cv2.equalizeHist(face)
-            return face
+            return [{"box": (x, y, x + fw, y + fh), "score": 0.8, "landmarks": None}
+                    for x, y, fw, fh in faces]
+    return []
 
-    print("  ⚠️ No face detected")
-    return None
-
-def get_orb_descriptor(face_gray: np.ndarray):
-    """Extract ORB feature descriptor from face image."""
-    keypoints, descriptors = orb.detectAndCompute(face_gray, None)
-    if descriptors is None or len(keypoints) < 5:
-        print("  ⚠️ Not enough keypoints")
+# ── FACE ALIGNMENT ────────────────────────────────────────
+def align_face(img_bgr: np.ndarray, landmarks: np.ndarray):
+    """
+    Align face to 112×112 using 5-point landmarks (ArcFace canonical space).
+    Returns None if estimateAffinePartial2D fails — caller must reject.
+    """
+    src  = landmarks.astype(np.float32)
+    M, _ = cv2.estimateAffinePartial2D(src, ARCFACE_REF, method=cv2.LMEDS)
+    if M is None:
         return None
-    print(f"  ✅ {len(keypoints)} keypoints found")
-    # Take first 200 descriptors for consistent size
-    return descriptors[:200]
+    aligned = cv2.warpAffine(img_bgr, M, (112, 112),
+                              flags=cv2.INTER_LINEAR,
+                              borderMode=cv2.BORDER_REFLECT)
+    return aligned
 
-def match_descriptors(stored_list: list, live_desc: np.ndarray) -> float:
+# ── ARCFACE EMBEDDING ─────────────────────────────────────
+def get_embedding(face_112: np.ndarray) -> np.ndarray:
     """
-    Match live descriptor against all stored descriptors.
-    Returns best match score (0-100, higher = better match).
+    ArcFace 512-D embedding from 112×112 aligned BGR face.
+    Returns L2-normalized vector (required for cosine similarity).
     """
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    best_score = 0.0
+    face_rgb  = cv2.cvtColor(face_112, cv2.COLOR_BGR2RGB).astype(np.float32)
+    face_norm = (face_rgb - 127.5) / 128.0
+    face_inp  = face_norm.transpose(2, 0, 1)[np.newaxis]   # (1,3,112,112)
 
-    for stored_desc in stored_list:
-        stored = np.array(stored_desc, dtype=np.uint8)
-        try:
-            matches = bf.match(stored, live_desc)
-            if not matches:
-                continue
-            # Sort by distance — lower distance = better match
-            matches = sorted(matches, key=lambda x: x.distance)
-            # Take top 50 matches
-            good = matches[:50]
-            # Score: average distance (lower = better) → convert to 0-100
-            avg_dist = np.mean([m.distance for m in good])
-            score = max(0, 100 - avg_dist)
-            print(f"  📊 Match score: {score:.1f} (avg_dist={avg_dist:.1f})")
-            best_score = max(best_score, score)
-        except Exception as e:
-            print(f"  ⚠️ Match error: {e}")
-            continue
+    inp_name = arcface_sess.get_inputs()[0].name
+    emb      = arcface_sess.run(None, {inp_name: face_inp})[0][0]
 
-    return best_score
+    norm = np.linalg.norm(emb)
+    emb  = emb / (norm + 1e-10)
+    print(f"  ✅ Embedding shape={emb.shape}, L2={norm:.4f}")
+    return emb.astype(np.float32)
 
-# ── FER EMOTION ───────────────────────────────────────────
-def detect_emotion(img_bgr: np.ndarray):
-    try:
-        results = emotion_detector.detect_emotions(img_bgr)
-        if not results:
-            return "neutral", {}
-        best     = max(results, key=lambda r: r["box"][2] * r["box"][3])
-        emotions = best["emotions"]
-        dominant = max(emotions, key=emotions.get)
-        score    = emotions[dominant]
-        print(f"  😊 {emotions}")
-        print(f"  🏆 {dominant} ({score:.3f})")
-        if dominant == "neutral" and score < 0.70:
-            others = {k: v for k, v in emotions.items() if k != "neutral"}
-            if others:
-                second = max(others, key=others.get)
-                if emotions[second] >= 0.15:
-                    return second, emotions
-        return dominant, emotions
-    except Exception as e:
-        print(f"  ⚠️ FER error: {e}")
+def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
+    """Cosine similarity — fast because both vectors are already L2-normalized."""
+    return float(np.dot(a, b))
+
+def best_sim(stored: list, live: np.ndarray) -> float:
+    sims = [cosine_sim(s, live) for s in stored]
+    best = max(sims)
+    print(f"  📊 Similarities: {[round(s, 4) for s in sims]} | Best: {best:.4f}")
+    return best
+
+# ── FULL FACE PIPELINE ────────────────────────────────────
+def face_pipeline(img_bgr: np.ndarray, strict: bool = True):
+    """
+    Run the complete detection → alignment → embedding pipeline.
+    strict=True  → no landmark = hard reject (used for register / verify).
+    strict=False → crop fallback allowed (used for emotion only).
+    Returns (embedding, error_string) — one of them is always None.
+    """
+    if arcface_sess is None:
+        return None, "ArcFace model not loaded."
+
+    # 1. Blur gate
+    if not check_blur(img_bgr):
+        return None, "Image is too blurry. Ensure good lighting and hold steady."
+
+    # 2. Detect faces
+    faces = detect_faces(img_bgr)
+    if not faces:
+        return None, "No face detected. Come closer and look straight at the camera."
+
+    # 3. Enforce single face
+    if len(faces) > 1:
+        return None, "Multiple faces detected. Please ensure only one face is visible."
+
+    face         = faces[0]
+    x1, y1, x2, y2 = face["box"]
+    fw, fh       = x2 - x1, y2 - y1
+
+    # 4. Size gate
+    if fw < MIN_FACE_SIZE or fh < MIN_FACE_SIZE:
+        return None, f"Face too small ({fw}×{fh} px). Please come closer to the camera."
+
+    # 5. Alignment — strict = no landmarks → reject
+    lms = face["landmarks"]
+    if lms is not None:
+        aligned = align_face(img_bgr, lms)
+        if aligned is None:
+            if strict:
+                return None, "Face alignment failed. Look straight at the camera."
+            aligned = cv2.resize(img_bgr[y1:y2, x1:x2], (112, 112))
+        else:
+            print("  ✅ Aligned via 5-point landmarks")
+    else:
+        if strict:
+            return None, "Landmarks not detected. Ensure frontal, well-lit face."
+        aligned = cv2.resize(img_bgr[y1:y2, x1:x2], (112, 112))
+        print("  ⚠️  No landmarks — crop fallback (non-strict)")
+
+    # 6. ArcFace embedding
+    emb = get_embedding(aligned)
+    return emb, None
+
+# ── EMOTION DETECTION ─────────────────────────────────────
+def detect_emotion(img_bgr: np.ndarray) -> tuple:
+    """
+    Uses SCRFD (same detector as recognition) for consistent face region,
+    then runs ONNX mini-Xception on grayscale 64×64 crop.
+    """
+    faces = detect_faces(img_bgr)
+    if not faces:
         return "neutral", {}
+
+    face         = max(faces, key=lambda f: f["score"])
+    x1, y1, x2, y2 = face["box"]
+    gray         = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    roi          = gray[y1:y2, x1:x2]
+
+    if roi.size == 0:
+        return "neutral", {}
+
+    if emotion_sess is not None:
+        face_64  = cv2.resize(roi, (64, 64)).astype(np.float32) / 255.0
+        face_inp = face_64[np.newaxis, np.newaxis]   # (1,1,64,64)
+        inp_name = emotion_sess.get_inputs()[0].name
+        preds    = emotion_sess.run(None, {inp_name: face_inp})[0][0]
+        # Numerically stable softmax
+        preds    = np.exp(preds - preds.max())
+        preds   /= preds.sum()
+        scores   = {EMOTION_LABELS[i]: float(preds[i]) for i in range(len(EMOTION_LABELS))}
+    else:
+        # Variance-based fallback (no model)
+        var    = float(np.var(roi))
+        bright = float(np.mean(roi))
+        scores = {l: 0.0 for l in EMOTION_LABELS}
+        if var > 1500 and bright > 100:
+            scores["happy"]   = 1.0
+        elif bright < 70:
+            scores["sad"]     = 1.0
+        else:
+            scores["neutral"] = 1.0
+
+    dominant = max(scores, key=scores.get)
+    score    = scores[dominant]
+    print(f"  😊 {dominant} ({score:.3f})")
+
+    # If neutral wins but weakly, promote second-best if it has ≥ 20% confidence
+    if dominant == "neutral" and score < 0.60:
+        others = {k: v for k, v in scores.items() if k != "neutral"}
+        if others:
+            second = max(others, key=others.get)
+            if scores[second] >= 0.20:
+                print(f"  → Override neutral → {second}")
+                return second, scores
+
+    return dominant, scores
 
 # ── ROUTES ────────────────────────────────────────────────
 
@@ -171,9 +388,10 @@ def detect_emotion(img_bgr: np.ndarray):
 def index():
     return jsonify({
         "status":       "VitaAI Face Server ✅",
-        "face_detect":  "OpenCV Haar Cascade",
-        "identity":     "OpenCV ORB Feature Matching",
-        "emotion":      "FER library",
+        "detection":    "SCRFD ONNX" if scrfd_sess   else "OpenCV Haar fallback",
+        "recognition":  "ArcFace ONNX 512-D" if arcface_sess else "❌ NOT LOADED",
+        "emotion":      "ONNX mini-Xception" if emotion_sess else "variance fallback",
+        "threshold":    SIMILARITY_THRESHOLD,
         "storage":      "MongoDB Atlas",
         "faces_stored": db_count(),
     }), 200
@@ -194,21 +412,17 @@ def face_register():
     except Exception as e:
         return jsonify({"ok": False, "msg": f"Invalid image: {e}"}), 400
 
-    face = detect_face_region(img_bgr)
-    if face is None:
-        return jsonify({"ok": False, "msg": "No face detected. Come closer & look straight at camera."})
-
-    desc = get_orb_descriptor(face)
-    if desc is None:
-        return jsonify({"ok": False, "msg": "Could not read face features. Ensure good lighting."})
+    emb, err = face_pipeline(img_bgr, strict=True)
+    if err:
+        return jsonify({"ok": False, "msg": err})
 
     try:
-        db_save(email, desc)
-        doc   = get_col().find_one({"email": email}, {"descriptors": 1})
-        count = len(doc["descriptors"]) if doc else 1
-        print(f"  ✅ {email} — {count} descriptor(s) stored")
+        db_save(email, emb)
+        doc   = get_col().find_one({"email": email}, {"embeddings": 1})
+        count = len(doc["embeddings"]) if doc else 1
+        print(f"  ✅ {email} — {count} embedding(s) stored")
         msg = "Face registered!" if count == 1 else f"Face updated! ({count}/3 angles stored)"
-        return jsonify({"ok": True, "msg": msg})
+        return jsonify({"ok": True, "msg": msg, "count": count})
     except Exception as e:
         return jsonify({"ok": False, "msg": f"Database error: {e}"}), 500
 
@@ -232,18 +446,14 @@ def face_verify():
     except Exception as e:
         return jsonify({"ok": False, "msg": f"Invalid image: {e}"}), 400
 
-    face = detect_face_region(img_bgr)
-    if face is None:
-        return jsonify({"ok": False, "msg": "No face detected. Come closer & look straight at camera."})
+    live_emb, err = face_pipeline(img_bgr, strict=True)
+    if err:
+        return jsonify({"ok": False, "msg": err})
 
-    desc = get_orb_descriptor(face)
-    if desc is None:
-        return jsonify({"ok": False, "msg": "Could not read face features. Ensure good lighting."})
+    sim = best_sim(stored, live_emb)
+    ok  = sim >= SIMILARITY_THRESHOLD
 
-    score = match_descriptors(stored, desc)
-    ok    = score >= 40.0  # threshold: score >= 40 = same person
-
-    print(f"  {'✅ PASS' if ok else '❌ FAIL'} (score={score:.1f}, threshold=40)")
+    print(f"  {'✅ PASS' if ok else '❌ FAIL'} sim={sim:.4f} threshold={SIMILARITY_THRESHOLD}")
 
     return jsonify({
         "ok":  bool(ok),
@@ -258,12 +468,12 @@ def face_emotion():
     img_b64 = d.get("img", "")
 
     if not img_b64:
-        return jsonify({"ok": False, "emotion": "neutral", "msg": "Image required."}), 400
+        return jsonify({"ok": False, "emotion": "neutral"}), 400
 
     try:
         img_bgr = b64_to_bgr(img_b64)
     except Exception as e:
-        return jsonify({"ok": False, "emotion": "neutral", "msg": f"Invalid image: {e}"}), 400
+        return jsonify({"ok": False, "emotion": "neutral", "msg": str(e)}), 400
 
     emotion, scores = detect_emotion(img_bgr)
     print(f"  🏆 Final: {emotion}")
@@ -271,26 +481,19 @@ def face_emotion():
     return jsonify({
         "ok":      True,
         "emotion": emotion,
-        "scores": {
-            "happy":    round(float(scores.get("happy",    0)), 4),
-            "sad":      round(float(scores.get("sad",      0)), 4),
-            "angry":    round(float(scores.get("angry",    0)), 4),
-            "fear":     round(float(scores.get("fear",     0)), 4),
-            "surprise": round(float(scores.get("surprise", 0)), 4),
-            "disgust":  round(float(scores.get("disgust",  0)), 4),
-            "neutral":  round(float(scores.get("neutral",  0)), 4),
-        },
+        "scores":  {k: round(float(v), 4) for k, v in scores.items()},
     })
 
 
 # ── ENTRYPOINT ────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    print("=" * 50)
-    print(f"  VitaAI Face Server  —  port {port}")
-    print(f"  Identity : OpenCV ORB")
-    print(f"  Emotion  : FER library")
-    print(f"  Storage  : MongoDB Atlas")
-    print(f"  Faces    : {db_count()}")
-    print("=" * 50)
+    print("=" * 55)
+    print(f"  VitaAI Face Server — port {port}")
+    print(f"  Detection   : {'SCRFD ONNX' if scrfd_sess   else 'OpenCV Haar'}")
+    print(f"  Recognition : {'ArcFace ONNX 512-D' if arcface_sess else '❌ NOT LOADED'}")
+    print(f"  Emotion     : {'ONNX mini-Xception' if emotion_sess else 'fallback'}")
+    print(f"  Threshold   : {SIMILARITY_THRESHOLD}")
+    print(f"  Faces stored: {db_count()}")
+    print("=" * 55)
     app.run(host="0.0.0.0", port=port, debug=False)
