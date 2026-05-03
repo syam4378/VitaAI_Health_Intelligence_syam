@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# onnxruntime 1.17.3 — fixes "cannot enable executable stack" on Render
 RUN pip install --no-cache-dir \
     flask==2.2.5 \
     flask-cors==3.0.10 \
@@ -20,12 +21,12 @@ RUN pip install --no-cache-dir \
     numpy==1.23.5 \
     Pillow==9.5.0 \
     opencv-python-headless==4.7.0.72 \
-    onnxruntime==1.16.3
+    onnxruntime==1.17.3
 
 # ── DOWNLOAD MODELS ───────────────────────────────────────
 RUN mkdir -p /app/models
 
-# 1. SCRFD + ArcFace — both from buffalo_l.zip
+# 1. SCRFD + ArcFace from buffalo_l.zip
 RUN wget -q --show-progress \
     -O /tmp/buffalo_l.zip \
     "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip" \
@@ -34,7 +35,7 @@ RUN wget -q --show-progress \
     && cp /tmp/buffalo_l/w600k_r50.onnx /app/models/arcface_w600k_r50.onnx \
     && rm -rf /tmp/buffalo_l.zip /tmp/buffalo_l/
 
-# 2. Emotion FERPlus-8 — from HuggingFace onnxmodelzoo (35MB, stable)
+# 2. Emotion FERPlus-8 from HuggingFace
 RUN wget -q --show-progress \
     -O /app/models/emotion_miniXception.onnx \
     "https://huggingface.co/onnxmodelzoo/emotion-ferplus-8/resolve/main/emotion-ferplus-8.onnx"
