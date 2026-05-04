@@ -19,7 +19,7 @@ from datetime import datetime
 import onnxruntime as ort
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["*"], supports_credentials=False)
 
 # ── CONFIG ────────────────────────────────────────────────
 MODELS_DIR      = "/app/models"
@@ -29,8 +29,8 @@ EMOTION_PATH    = f"{MODELS_DIR}/emotion_miniXception.onnx"
 MODEL_VERSION   = "scrfd+arcface+v1"
 
 SIMILARITY_THRESHOLD = 0.45
-MIN_FACE_SIZE        = 60
-BLUR_THRESHOLD       = 100.0
+MIN_FACE_SIZE        = 40
+BLUR_THRESHOLD       = 50.0
 
 # FERPlus-8 label order (neutral=0, happiness=1, surprise=2, sadness=3,
 #                         anger=4, disgust=5, fear=6, contempt=7)
@@ -331,7 +331,7 @@ def detect_emotion(img_bgr: np.ndarray) -> tuple:
     score    = scores[dominant]
     print(f"  😊 {dominant} ({score:.3f})")
 
-    if dominant == "neutral" and score < 0.60:
+    if dominant == "neutral" and score < 0.45:
         others = {k: v for k, v in scores.items() if k != "neutral"}
         if others:
             second = max(others, key=others.get)
@@ -343,7 +343,7 @@ def detect_emotion(img_bgr: np.ndarray) -> tuple:
 
 # ── ROUTES ────────────────────────────────────────────────
 
-@app.route("/", methods=["GET", "HEAD"])
+@app.route("/", methods=["GET", "HEAD", "OPTIONS"])
 def index():
     return jsonify({
         "status":       "VitaAI Face Server ✅",
@@ -356,7 +356,7 @@ def index():
     }), 200
 
 
-@app.route("/face/register", methods=["POST"])
+@app.route("/face/register", methods=["POST", "OPTIONS"])
 def face_register():
     d       = request.get_json(silent=True) or {}
     email   = d.get("email", "").strip()
@@ -384,7 +384,7 @@ def face_register():
         return jsonify({"ok": False, "msg": f"Database error: {e}"}), 500
 
 
-@app.route("/face/verify", methods=["POST"])
+@app.route("/face/verify", methods=["POST", "OPTIONS"])
 def face_verify():
     d       = request.get_json(silent=True) or {}
     email   = d.get("email", "").strip()
@@ -417,7 +417,7 @@ def face_verify():
     })
 
 
-@app.route("/face/emotion", methods=["POST"])
+@app.route("/face/emotion", methods=["POST", "OPTIONS"])
 def face_emotion():
     print("\n😊 EMOTION")
     d       = request.get_json(silent=True) or {}
