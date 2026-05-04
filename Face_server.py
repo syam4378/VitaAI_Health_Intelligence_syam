@@ -21,6 +21,23 @@ import onnxruntime as ort
 app = Flask(__name__)
 CORS(app, origins=["*"], supports_credentials=False)
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"]  = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, HEAD"
+    return response
+
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        from flask import make_response
+        res = make_response("", 200)
+        res.headers["Access-Control-Allow-Origin"]  = "*"
+        res.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        res.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, HEAD"
+        return res
+
 # ── CONFIG ────────────────────────────────────────────────
 MODELS_DIR      = "/app/models"
 SCRFD_PATH      = f"{MODELS_DIR}/scrfd_2.5g_bnkps.onnx"
