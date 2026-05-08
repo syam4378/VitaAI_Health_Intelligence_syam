@@ -2,10 +2,11 @@
 VitaAI Face Server — Final Production Grade
   ✅ SCRFD ONNX detection (det_10g from buffalo_l)
   ✅ ArcFace w600k_r50 512-D embeddings
-  ✅ FERPlus-8 ONNX emotion (stable ONNX model zoo — 8 classes)
+  ✅ FERPlus-8 ONNX emotion (8 classes, stable)
   ✅ NMS, strict alignment, blur/size/multi-face validation
   ✅ MongoDB with timestamp + model version
   ✅ L2 normalization + cosine similarity
+  ✅ CORS fully handled for Render deployment
 """
 
 from flask import Flask, request, jsonify
@@ -49,11 +50,10 @@ SIMILARITY_THRESHOLD = 0.45
 MIN_FACE_SIZE        = 40
 BLUR_THRESHOLD       = 50.0
 
-# FERPlus-8 label order (neutral=0, happiness=1, surprise=2, sadness=3,
-#                         anger=4, disgust=5, fear=6, contempt=7)
+# FERPlus-8 label order
 EMOTION_LABELS = ["neutral", "happy", "surprise", "sad", "angry", "disgust", "fear", "contempt"]
 
-# ArcFace 5-point reference landmarks for 112×112
+# ArcFace 5-point reference landmarks for 112x112
 ARCFACE_REF = np.array([
     [38.2946, 51.6963],
     [73.5318, 51.5014],
@@ -290,7 +290,7 @@ def face_pipeline(img_bgr: np.ndarray, strict: bool = True):
     fw, fh          = x2 - x1, y2 - y1
 
     if fw < MIN_FACE_SIZE or fh < MIN_FACE_SIZE:
-        return None, f"Face too small ({fw}×{fh} px). Please come closer to the camera."
+        return None, f"Face too small ({fw}x{fh} px). Please come closer to the camera."
 
     lms = face["landmarks"]
     if lms is not None:
@@ -324,12 +324,11 @@ def detect_emotion(img_bgr: np.ndarray) -> tuple:
         return "neutral", {}
 
     if emotion_sess is not None:
-        # FERPlus-8: input (1,1,64,64), float32, range 0-255 (no /255 normalization)
+        # FERPlus-8: input (1,1,64,64), float32, range 0-255
         face_64  = cv2.resize(roi, (64, 64)).astype(np.float32)
-        face_inp = face_64[np.newaxis, np.newaxis]   # (1,1,64,64)
+        face_inp = face_64[np.newaxis, np.newaxis]
         inp_name = emotion_sess.get_inputs()[0].name
         preds    = emotion_sess.run(None, {inp_name: face_inp})[0][0]
-        # Softmax
         preds    = np.exp(preds - preds.max())
         preds   /= preds.sum()
         scores   = {EMOTION_LABELS[i]: float(preds[i]) for i in range(len(EMOTION_LABELS))}
@@ -359,7 +358,6 @@ def detect_emotion(img_bgr: np.ndarray) -> tuple:
     return dominant, scores
 
 # ── ROUTES ────────────────────────────────────────────────
-
 @app.route("/", methods=["GET", "HEAD", "OPTIONS"])
 def index():
     return jsonify({

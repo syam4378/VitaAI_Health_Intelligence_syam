@@ -21,7 +21,7 @@
 
 <div class="app">
 
-<!-- ═══ SIDEBAR — desktop ═══ -->
+<!-- ═══ SIDEBAR ═══ -->
 <aside class="sidebar">
   <div class="logo">
     <div class="logo-icon">💙</div>
@@ -229,7 +229,7 @@
   <div class="topbar">
     <div>
       <div class="pg-title">🧠 <span>Health AI Chat</span></div>
-      <span style="font-size:12px;color:var(--muted)">Powered by LLaMA3 · Knows your health data</span>
+      <span style="font-size:12px;color:var(--muted)">Powered by SyamHealth · Knows your health data</span>
     </div>
     <button class="btn btn-back" onclick="goBack()">← Back</button>
   </div>
@@ -285,16 +285,37 @@
     <div class="card">
       <div class="voice-area">
         <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;text-align:center;color:var(--text)">Talk to VitaAI Coach</div>
-        <p style="font-size:12.5px;color:var(--muted);text-align:center">Hold the orb → speak clearly → release for AI answer</p>
-        <div class="v-orb" id="vOrb" onmousedown="startVoice()" onmouseup="stopVoice()" ontouchstart="startVoice(event)" ontouchend="stopVoice()">🎙️</div>
-        <div class="v-status" id="vStatus">Hold the orb to speak</div>
+        <p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:4px">Press Activate → speak → AI answers with voice</p>
+
+        <!-- ── ACTIVATE / STOP BUTTON ── -->
+        <div style="display:flex;justify-content:center;margin:22px 0 14px">
+          <button id="voiceToggleBtn" onclick="toggleVoice()"
+            style="display:flex;align-items:center;gap:10px;padding:14px 32px;border-radius:50px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;box-shadow:0 4px 20px rgba(37,99,235,0.35);transition:all .25s;min-width:200px;justify-content:center">
+            <span id="voiceBtnIcon" style="font-size:20px">🎙️</span>
+            <span id="voiceBtnLabel">Activate Voice</span>
+          </button>
+        </div>
+
+        <!-- pulse ring shown while recording -->
+        <div id="voicePulse" style="display:none;justify-content:center;margin-bottom:12px">
+          <div style="width:60px;height:60px;border-radius:50%;border:3px solid var(--accent);animation:vPulse 1s ease-in-out infinite;opacity:0.7"></div>
+        </div>
+
+        <div class="v-status" id="vStatus">Press Activate to start</div>
         <div class="v-trans" id="vTrans">Your speech and AI reply will appear here…</div>
-        <div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.5">💡 Hold 2-3 seconds before speaking.</div>
+
+        <!-- step instructions -->
+        <div style="margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-size:12px;color:var(--muted);line-height:1.8">
+          <div>1️⃣ Press <b>Activate Voice</b></div>
+          <div>2️⃣ Speak your health question clearly</div>
+          <div>3️⃣ Press <b>Stop &amp; Send</b> when done</div>
+          <div>4️⃣ AI replies with voice + text ✅</div>
+        </div>
       </div>
     </div>
     <div class="card">
       <div class="ch"><div class="ct">💬 Conversation Log</div></div>
-      <div class="cb" id="vHistory" style="display:flex;flex-direction:column;gap:9px;max-height:310px;overflow-y:auto;font-size:13px;line-height:1.6">
+      <div class="cb" id="vHistory" style="display:flex;flex-direction:column;gap:9px;max-height:360px;overflow-y:auto;font-size:13px;line-height:1.6">
         <div style="color:var(--muted);font-style:italic">Your conversation will appear here…</div>
       </div>
     </div>
@@ -342,6 +363,12 @@
     </div>
     <button class="btn btn-back" onclick="goBack()">← Back</button>
   </div>
+
+  <!-- Steps auto-tracking info banner -->
+  <div class="tip-banner" style="margin-bottom:13px;border-color:rgba(124,58,237,0.25);background:rgba(124,58,237,0.07)">
+    🏃 <b>Auto Step Tracking:</b> On Android, connect Google Fit — steps sync automatically. On iPhone, Health app tracks in background. <a href="#" onclick="showStepsTip();return false" style="color:var(--secondary)">How to sync →</a>
+  </div>
+
   <div class="mg" style="margin-bottom:13px">
     <div class="mc"><div class="mv" id="trScore">—</div><div class="mu">/ 100</div><div class="mn">Health Score</div></div>
     <div class="mc"><div class="mv" id="trSteps">—</div><div class="mu">steps</div><div class="mn">Latest Steps</div></div>
@@ -423,29 +450,18 @@
 </main>
 </div>
 
-<!-- ═══ BOTTOM TAB BAR (mobile only) ═══ -->
+<!-- ═══ BOTTOM TAB BAR ═══ -->
 <nav class="bottom-nav">
   <div class="bottom-nav-inner">
-    <div class="bn-item active" id="bn-dashboard" onclick="goPage('dashboard')">
-      <span class="bn-icon">🏠</span><span>Home</span>
-    </div>
-    <div class="bn-item" id="bn-checkin" onclick="goPage('checkin')">
-      <span class="bn-icon">✅</span><span>Check-in</span>
-      <span class="bn-badge" id="bnBadge">!</span>
-    </div>
-    <div class="bn-item" id="bn-aichat" onclick="goPage('aichat')">
-      <span class="bn-icon">🧠</span><span>AI Chat</span>
-    </div>
-    <div class="bn-item" id="bn-tracker" onclick="goPage('tracker')">
-      <span class="bn-icon">📊</span><span>Tracker</span>
-    </div>
-    <div class="bn-item" id="bn-profile" onclick="goPage('profile')">
-      <span class="bn-icon">👤</span><span>Profile</span>
-    </div>
+    <div class="bn-item active" id="bn-dashboard" onclick="goPage('dashboard')"><span class="bn-icon">🏠</span><span>Home</span></div>
+    <div class="bn-item" id="bn-checkin" onclick="goPage('checkin')"><span class="bn-icon">✅</span><span>Check-in</span><span class="bn-badge" id="bnBadge">!</span></div>
+    <div class="bn-item" id="bn-aichat" onclick="goPage('aichat')"><span class="bn-icon">🧠</span><span>AI Chat</span></div>
+    <div class="bn-item" id="bn-tracker" onclick="goPage('tracker')"><span class="bn-icon">📊</span><span>Tracker</span></div>
+    <div class="bn-item" id="bn-profile" onclick="goPage('profile')"><span class="bn-icon">👤</span><span>Profile</span></div>
   </div>
 </nav>
 
-<!-- ═══ CHATBASE FLOAT ═══ -->
+<!-- ═══ CHATBASE ═══ -->
 <button class="cb-btn" onclick="toggleCB()" title="Ask about VitaAI">💬</button>
 <div class="cb-popup" id="cbPopup">
   <div class="cb-head">
@@ -460,6 +476,33 @@
   </div>
 </div>
 
+<!-- Steps sync tip modal -->
+<div id="stepsTipModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px;max-width:400px;width:90%;margin:auto">
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;margin-bottom:12px">🏃 How to Track Steps</div>
+    <div style="font-size:13.5px;line-height:1.8;color:var(--text2)">
+      <b>Android:</b><br/>
+      1. Open <b>Google Fit</b> or <b>Samsung Health</b><br/>
+      2. It auto-counts steps in background<br/>
+      3. Check your steps there and enter in Check-in<br/><br/>
+      <b>iPhone:</b><br/>
+      1. Open <b>Apple Health</b> app<br/>
+      2. Tap Steps — it tracks automatically<br/>
+      3. Enter today's steps in Check-in<br/><br/>
+      <b>No app?</b> Just walk with your phone in pocket — both Android and iPhone count steps automatically without any extra app! Check your built-in Health/Fit app.
+    </div>
+    <button onclick="document.getElementById('stepsTipModal').style.display='none'" class="btn btn-p" style="width:100%;margin-top:16px">Got it ✅</button>
+  </div>
+</div>
+
+<style>
+@keyframes vPulse {
+  0%,100% { transform: scale(1); opacity: 0.7; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+.voice-area { display:flex;flex-direction:column;padding:10px 4px; }
+</style>
+
 <script>
 // ═══════════════════════════════════════
 // AUTH GUARD
@@ -469,344 +512,265 @@ if (!token) { location.replace('login.html'); throw 0; }
 try {
   const p = JSON.parse(atob(token.split('.')[1]));
   if (p.exp && p.exp * 1000 < Date.now()) { localStorage.removeItem('token'); location.replace('login.html'); throw 0; }
-} catch(e) { if (e === 0) throw 0; localStorage.removeItem('token'); location.replace('login.html'); throw 0; }
+} catch(e) { if(e===0)throw 0; localStorage.removeItem('token'); location.replace('login.html'); throw 0; }
 
 // ═══════════════════════════════════════
 // THEME
 // ═══════════════════════════════════════
-(function initTheme() {
+(function initTheme(){
   const saved = localStorage.getItem('vitaai_theme') || 'light';
   document.documentElement.setAttribute('data-theme', saved);
   setThemeIcons(saved);
 })();
-
-function setThemeIcons(t) {
-  const icon = t === 'dark' ? '☀️' : '🌙';
-  const b1 = document.getElementById('themeBtn');
-  const b2 = document.getElementById('mobThemeBtn');
-  if (b1) b1.textContent = icon;
-  if (b2) b2.textContent = icon;
+function setThemeIcons(t){
+  const icon = t==='dark'?'☀️':'🌙';
+  const b1=document.getElementById('themeBtn'); const b2=document.getElementById('mobThemeBtn');
+  if(b1)b1.textContent=icon; if(b2)b2.textContent=icon;
 }
-
-function toggleTheme() {
-  const cur = document.documentElement.getAttribute('data-theme') || 'light';
-  const next = cur === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('vitaai_theme', next);
-  setThemeIcons(next);
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme')||'light';
+  const next=cur==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',next);
+  localStorage.setItem('vitaai_theme',next); setThemeIcons(next);
 }
 
 // ═══════════════════════════════════════
 // GLOBALS
 // ═══════════════════════════════════════
-let uName = 'User', chatHist = [], ciStep = 0, ciAns = {};
-let _wk, _mood, _sleep, _steps, _cal, _tr, _stTr, _calTr, _slpTr, _watTr;
-
-// Internal page stack for back navigation
-// Browser history is also managed so swipe/browser back stays in-app
-let pageStack = ['dashboard'];
-let currentPage = 'dashboard';
+let uName='User', chatHist=[], ciStep=0, ciAns={};
+let _wk,_mood,_sleep,_steps,_cal,_tr,_stTr,_calTr,_slpTr,_watTr;
+let pageStack=['dashboard'], currentPage='dashboard';
 
 // ═══════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════
-(function init() {
+(function init(){
   try {
-    const p = JSON.parse(atob(token.split('.')[1]));
-    uName = p.name || 'User';
-    const first = uName.split(' ')[0];
-    txt('userName', first); txt('sidebarName', uName);
-    txt('userAvLetter', uName[0].toUpperCase());
-    txt('pfDisplayEmail', p.email || '');
-    const h = new Date().getHours();
-    const g = h < 12 ? 'Good Morning ☀️' : h < 18 ? 'Good Afternoon 🌤️' : 'Good Evening 🌙';
-    document.getElementById('greetTitle').innerHTML = `${g}, <span>${first}</span>`;
-  } catch(e) {}
-
-  txt('todayDate', new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
-  txt('reportDate', new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
-
-  // Replace the initial state so browser doesn't go to blank on first back
-  history.replaceState({ page: 'dashboard' }, '', window.location.pathname + '#dashboard');
-
-  loadDash();
-  loadProfile();
+    const p=JSON.parse(atob(token.split('.')[1]));
+    uName=p.name||'User';
+    const first=uName.split(' ')[0];
+    txt('userName',first); txt('sidebarName',uName); txt('userAvLetter',uName[0].toUpperCase());
+    txt('pfDisplayEmail',p.email||'');
+    const h=new Date().getHours();
+    const g=h<12?'Good Morning ☀️':h<18?'Good Afternoon 🌤️':'Good Evening 🌙';
+    document.getElementById('greetTitle').innerHTML=`${g}, <span>${first}</span>`;
+  } catch(e){}
+  txt('todayDate',new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
+  txt('reportDate',new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
+  history.replaceState({page:'dashboard'},'',window.location.pathname+'#dashboard');
+  loadDash(); loadProfile();
 })();
 
-// ═══════════════════════════════════════
-// BROWSER / SWIPE BACK — stays inside app
-// ═══════════════════════════════════════
-window.addEventListener('popstate', function(e) {
-  // Prevent default login redirect — always handle inside app
-  const page = (e.state && e.state.page) ? e.state.page : 'dashboard';
-  _navigate(page, false); // false = don't push new history entry
+window.addEventListener('popstate', function(e){
+  const page=(e.state&&e.state.page)?e.state.page:'dashboard';
+  _navigate(page,false);
 });
 
 // ═══════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════
-function goPage(name) {
-  if (name === currentPage) return;
+function goPage(name){
+  if(name===currentPage)return;
   pageStack.push(name);
-  history.pushState({ page: name }, '', window.location.pathname + '#' + name);
-  _navigate(name, false);
+  history.pushState({page:name},'',window.location.pathname+'#'+name);
+  _navigate(name,false);
 }
-
-function goBack() {
-  if (pageStack.length > 1) {
-    pageStack.pop();
-    const prev = pageStack[pageStack.length - 1];
-    history.pushState({ page: prev }, '', window.location.pathname + '#' + prev);
-    _navigate(prev, false);
-  } else {
-    // Already at root, go dashboard
-    _navigate('dashboard', false);
-  }
+function goBack(){
+  if(pageStack.length>1){ pageStack.pop(); const prev=pageStack[pageStack.length-1]; history.pushState({page:prev},'',window.location.pathname+'#'+prev); _navigate(prev,false); }
+  else _navigate('dashboard',false);
 }
-
-function _navigate(name, pushHistory) {
-  currentPage = name;
-  if (pushHistory) {
-    history.pushState({ page: name }, '', window.location.pathname + '#' + name);
-  }
-
-  // Show/hide pages
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('pg-' + name)?.classList.add('active');
-
-  // Desktop sidebar highlight
-  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll('.ni').forEach(n => {
-    if (n.getAttribute('onclick')?.includes("'" + name + "'")) n.classList.add('active');
-  });
-
-  // Bottom nav highlight
-  document.querySelectorAll('.bn-item').forEach(b => b.classList.remove('active'));
-  const bnEl = document.getElementById('bn-' + name);
-  if (bnEl) bnEl.classList.add('active');
-
-  // Mobile header back button
-  const mobBack = document.getElementById('mobBack');
-  if (mobBack) {
-    if (name === 'dashboard') mobBack.classList.add('invisible');
-    else mobBack.classList.remove('invisible');
-  }
-
-  // Page-specific setup
-  if (name === 'mood') startCam(); else stopCam();
-  if (name === 'checkin') renderCI();
-  if (name === 'tracker') loadTracker();
-  if (name === 'dashboard') loadDash();
+function _navigate(name,pushHistory){
+  currentPage=name;
+  if(pushHistory)history.pushState({page:name},'',window.location.pathname+'#'+name);
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pg-'+name)?.classList.add('active');
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n=>{ if(n.getAttribute('onclick')?.includes("'"+name+"'"))n.classList.add('active'); });
+  document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active'));
+  const bnEl=document.getElementById('bn-'+name); if(bnEl)bnEl.classList.add('active');
+  const mobBack=document.getElementById('mobBack');
+  if(mobBack){ if(name==='dashboard')mobBack.classList.add('invisible'); else mobBack.classList.remove('invisible'); }
+  if(name==='mood') startCam(); else stopCam();
+  if(name==='checkin') renderCI();
+  if(name==='tracker') loadTracker();
+  if(name==='dashboard') loadDash();
+  // stop voice if navigating away
+  if(name!=='voice' && voiceActive) stopVoiceRecording();
 }
-
-function logout() { localStorage.removeItem('token'); location.href = 'login.html'; }
+function logout(){ localStorage.removeItem('token'); location.href='login.html'; }
+function showStepsTip(){ document.getElementById('stepsTipModal').style.display='flex'; }
 
 // ═══════════════════════════════════════
-// LOAD DASHBOARD
-// Both /dashboard/stats and /checkins fetched in parallel.
-// /checkins is the bulletproof source for stat cards (no timezone issues).
+// DASHBOARD
 // ═══════════════════════════════════════
-async function loadDash() {
-  let stats = null, checkins = [];
+async function loadDash(){
+  let stats=null, checkins=[];
   try {
-    const [sr, cr] = await Promise.all([
-      fetch('/dashboard/stats', { headers: { Authorization: 'Bearer ' + token } }),
-      fetch('/checkins',        { headers: { Authorization: 'Bearer ' + token } })
+    const[sr,cr]=await Promise.all([
+      fetch('/dashboard/stats',{headers:{Authorization:'Bearer '+token}}),
+      fetch('/checkins',       {headers:{Authorization:'Bearer '+token}})
     ]);
-    if (sr.ok) stats    = await sr.json();
-    if (cr.ok) checkins = (await cr.json()).checkins || [];
-  } catch(e) {}
-  renderDash(stats, checkins);
+    if(sr.ok)stats=await sr.json();
+    if(cr.ok)checkins=(await cr.json()).checkins||[];
+  } catch(e){}
+  renderDash(stats,checkins);
 }
-
-function renderDash(d, checkins) {
-  const latest = checkins[0] || null;
-  const total  = latest ? checkins.length : ((d && d.totalCheckins) || 0);
-  const has    = total > 0;
-
-  // Welcome banner only for zero check-ins
-  vis('wbNew',     !has, 'flex');
-  vis('wbScore',    has, 'flex');
-  vis('histCard',   has, 'block');
-  vis('actCharts',  has, 'grid');
-
-  if (has) {
-    const sc  = (d && d.score)    ? d.score    : (latest ? latest.health_score || 0 : 0);
-    const avg = (d && d.avgScore) ? d.avgScore : sc;
-    txt('scoreNum', sc);
-    const lbl = sc>=80?'/ 100 · Excellent 🌟':sc>=60?'/ 100 · Good 👍':sc>=40?'/ 100 · Fair ⚡':'/ 100 · Keep Going 💪';
-    txt('scoreLabel', lbl);
-    txt('scoreSubtitle', `Latest score · 7-day avg: ${avg} · ${total} total check-ins`);
-    txt('avgTag', `Score: ${sc}/100`);
-    const streak = (d && d.streak) ? d.streak : 0;
-    if (streak > 0) { txt('streakNum', streak); vis('streakBadge', true, 'block'); }
+function renderDash(d,checkins){
+  const latest=checkins[0]||null;
+  const total=latest?checkins.length:((d&&d.totalCheckins)||0);
+  const has=total>0;
+  vis('wbNew',!has,'flex'); vis('wbScore',has,'flex'); vis('histCard',has,'block'); vis('actCharts',has,'grid');
+  if(has){
+    const sc=(d&&d.score)?d.score:(latest?latest.health_score||0:0);
+    const avg=(d&&d.avgScore)?d.avgScore:sc;
+    txt('scoreNum',sc);
+    const lbl=sc>=80?'/ 100 · Excellent 🌟':sc>=60?'/ 100 · Good 👍':sc>=40?'/ 100 · Fair ⚡':'/ 100 · Keep Going 💪';
+    txt('scoreLabel',lbl); txt('scoreSubtitle',`Latest score · 7-day avg: ${avg} · ${total} total check-ins`); txt('avgTag',`Score: ${sc}/100`);
+    const streak=(d&&d.streak)?d.streak:0;
+    if(streak>0){txt('streakNum',streak);vis('streakBadge',true,'block');}
   }
-
-  if (latest) {
-    const w = latest.water_intake || 0;
-    txt('stWater', w > 0 ? w + ' glasses' : '—');
-    setSub('stWaterSub', w>0 ? (w>=8?'✅ Daily goal reached!':`↑ ${8-w} more to goal`) : '—', w>=6);
-
-    const st = latest.steps || 0;
-    txt('stSteps', st > 0 ? st.toLocaleString() : '—');
-    setSub('stStepsSub', st>0 ? (st>=10000?'✅ 10k goal reached!':st>=5000?'↑ Good progress!':'↓ Goal: 10,000 steps') : '—', st>=5000);
-
-    const cal = latest.calories_burned || 0;
-    const calGoal = (d && d.calorieGoal) ? d.calorieGoal : 2000;
-    txt('stCal', cal > 0 ? cal.toLocaleString() + ' kcal' : '—');
-    setSub('stCalSub', cal>0 ? `Goal: ${calGoal.toLocaleString()} kcal/day` : '—', cal>0);
-
-    const sh = latest.sleep_hours > 0 ? latest.sleep_hours + 'h' : (latest.sleep_quality || '—');
-    txt('stSleep', sh);
-    const gs = latest.sleep_hours >= 7
-      || (latest.sleep_quality && (latest.sleep_quality.includes('7-8') || latest.sleep_quality.includes('7–8') || latest.sleep_quality.includes('8+')));
-    setSub('stSleepSub', gs ? '↑ Good sleep!' : (latest.sleep_quality ? '↓ Try sleeping more' : '—'), gs);
+  if(latest){
+    const w=latest.water_intake||0; txt('stWater',w>0?w+' glasses':'—'); setSub('stWaterSub',w>0?(w>=8?'✅ Daily goal reached!':`↑ ${8-w} more to goal`):'—',w>=6);
+    const st=latest.steps||0; txt('stSteps',st>0?st.toLocaleString():'—'); setSub('stStepsSub',st>0?(st>=10000?'✅ 10k goal reached!':st>=5000?'↑ Good progress!':'↓ Goal: 10,000 steps'):'—',st>=5000);
+    const cal=latest.calories_burned||0; const calGoal=(d&&d.calorieGoal)?d.calorieGoal:2000; txt('stCal',cal>0?cal.toLocaleString()+' kcal':'—'); setSub('stCalSub',cal>0?`Goal: ${calGoal.toLocaleString()} kcal/day`:'—',cal>0);
+    const sh=latest.sleep_hours>0?latest.sleep_hours+'h':(latest.sleep_quality||'—'); txt('stSleep',sh);
+    const gs=latest.sleep_hours>=7||(latest.sleep_quality&&(latest.sleep_quality.includes('7-8')||latest.sleep_quality.includes('7–8')||latest.sleep_quality.includes('8+')));
+    setSub('stSleepSub',gs?'↑ Good sleep!':(latest.sleep_quality?'↓ Try sleeping more':'—'),gs);
   } else {
-    ['stWater','stSteps','stCal','stSleep'].forEach(id => txt(id, '—'));
-    ['stWaterSub','stStepsSub','stCalSub','stSleepSub'].forEach(id => {
-      txt(id, 'Complete check-in to track');
-      const el = document.getElementById(id);
-      if (el) { el.className = 'sc-sub'; el.style.color = 'var(--muted)'; }
-    });
+    ['stWater','stSteps','stCal','stSleep'].forEach(id=>txt(id,'—'));
+    ['stWaterSub','stStepsSub','stCalSub','stSleepSub'].forEach(id=>{txt(id,'Complete check-in to track');const el=document.getElementById(id);if(el){el.className='sc-sub';el.style.color='var(--muted)';}});
   }
-
-  if (has && d && d.charts) {
-    const c = d.charts;
-    if (c.scoreData?.some(v=>v>0)) { hide('emWeek'); _wk = mkLine('weekChart',_wk,c.days,c.scoreData,'var(--primary)','rgba(37,99,235,0.06)'); }
-    if (c.moodData?.some(v=>v!==null)) { hide('emMood'); document.getElementById('moodLegend').style.display='flex'; _mood=mkBarMood('moodChart',_mood,c.days,c.moodData); }
-    if (c.sleepData?.some(v=>v!==null&&v>0)) { hide('emSleep'); _sleep=mkLine('sleepChart',_sleep,c.days,c.sleepData,'var(--secondary)','rgba(124,58,237,0.06)',0,12); }
-    if (c.stepsData?.some(v=>v>0)) mkBar('stepsChart',_steps,c.days,c.stepsData,'rgba(124,58,237,0.6)');
-    if (c.calData?.some(v=>v>0))   mkBar('calChart',_cal,c.days,c.calData,'rgba(219,39,119,0.6)');
+  if(has&&d&&d.charts){
+    const c=d.charts;
+    if(c.scoreData?.some(v=>v>0)){hide('emWeek');_wk=mkLine('weekChart',_wk,c.days,c.scoreData,'var(--primary)','rgba(37,99,235,0.06)');}
+    if(c.moodData?.some(v=>v!==null)){hide('emMood');document.getElementById('moodLegend').style.display='flex';_mood=mkBarMood('moodChart',_mood,c.days,c.moodData);}
+    if(c.sleepData?.some(v=>v!==null&&v>0)){hide('emSleep');_sleep=mkLine('sleepChart',_sleep,c.days,c.sleepData,'var(--secondary)','rgba(124,58,237,0.06)',0,12);}
+    if(c.stepsData?.some(v=>v>0))mkBar('stepsChart',_steps,c.days,c.stepsData,'rgba(124,58,237,0.6)');
+    if(c.calData?.some(v=>v>0))mkBar('calChart',_cal,c.days,c.calData,'rgba(219,39,119,0.6)');
   }
-  if (has) loadHist();
+  if(has)loadHist();
 }
 
 // ═══════════════════════════════════════
 // TRACKER
 // ═══════════════════════════════════════
-async function loadTracker() {
-  let d = null, checkins = [];
+async function loadTracker(){
+  let d=null,checkins=[];
   try {
-    const [sr, cr] = await Promise.all([
-      fetch('/dashboard/stats', { headers: { Authorization: 'Bearer ' + token } }),
-      fetch('/checkins',        { headers: { Authorization: 'Bearer ' + token } })
+    const[sr,cr]=await Promise.all([
+      fetch('/dashboard/stats',{headers:{Authorization:'Bearer '+token}}),
+      fetch('/checkins',       {headers:{Authorization:'Bearer '+token}})
     ]);
-    if (sr.ok) d        = await sr.json();
-    if (cr.ok) checkins = (await cr.json()).checkins || [];
-  } catch(e) {}
-
-  const latest = checkins[0] || null;
-  if (d) {
-    const days = d.chartDays || 7;
-    const pl = days >= 30 ? 'Last 30 Days' : `Last ${days} Days`;
+    if(sr.ok)d=await sr.json(); if(cr.ok)checkins=(await cr.json()).checkins||[];
+  } catch(e){}
+  const latest=checkins[0]||null;
+  if(d){
+    const days=d.chartDays||7; const pl=days>=30?'Last 30 Days':`Last ${days} Days`;
     txt('trChartTitle',`📉 Health Score — ${pl}`); txt('stepsChartTitle',`🏃 Steps — ${pl}`);
     txt('calChartTitle',`🔥 Calories — ${pl}`); txt('sleepChartTitle',`💤 Sleep — ${pl}`); txt('waterChartTitle',`💧 Water — ${pl}`);
-    if (d.calorieGoal) { txt('trGoal', d.calorieGoal.toLocaleString()); document.getElementById('trGoal').style.color='var(--primary)'; }
-    if (d.bmi) { txt('trBMI',d.bmi); txt('trBMILbl',d.bmiLabel||'kg/m²'); document.getElementById('trBMI').style.color=d.bmiLabel?.includes('Normal')?'var(--success)':'var(--gold)'; }
-    if (d.profile?.blood_group) txt('trBlood', d.profile.blood_group);
-    if ((d.streak||0)>0) txt('trStreak', d.streak);
-    txt('trTotal', d.totalCheckins || checkins.length);
-  } else if (checkins.length>0) { txt('trTotal', checkins.length); }
-
-  if (latest) {
-    const sc = (d && d.score) ? d.score : (latest.health_score||0);
-    if (sc>0) { document.getElementById('trScore').textContent=sc; document.getElementById('trScore').style.color=sc>=80?'var(--success)':sc>=60?'var(--gold)':'var(--accent)'; }
-    if (latest.steps>0)          { txt('trSteps',latest.steps.toLocaleString()); document.getElementById('trSteps').style.color='var(--secondary)'; }
-    if (latest.calories_burned>0){ txt('trCal',latest.calories_burned.toLocaleString()); document.getElementById('trCal').style.color='var(--accent)'; }
-    if (latest.water_intake>0)    txt('trWater',latest.water_intake);
-    if (latest.sleep_hours>0)     txt('trSleep',latest.sleep_hours+'h');
-    if (latest.heart_rate>0)    { txt('trHR',latest.heart_rate); document.getElementById('trHR').style.color='var(--accent)'; }
-    if (latest.body_weight>0)     txt('trWeight',latest.body_weight+' kg');
+    if(d.calorieGoal){txt('trGoal',d.calorieGoal.toLocaleString());document.getElementById('trGoal').style.color='var(--primary)';}
+    if(d.bmi){txt('trBMI',d.bmi);txt('trBMILbl',d.bmiLabel||'kg/m²');document.getElementById('trBMI').style.color=d.bmiLabel?.includes('Normal')?'var(--success)':'var(--gold)';}
+    if(d.profile?.blood_group)txt('trBlood',d.profile.blood_group);
+    if((d.streak||0)>0)txt('trStreak',d.streak);
+    txt('trTotal',d.totalCheckins||checkins.length);
+  } else if(checkins.length>0){txt('trTotal',checkins.length);}
+  if(latest){
+    const sc=(d&&d.score)?d.score:(latest.health_score||0);
+    if(sc>0){document.getElementById('trScore').textContent=sc;document.getElementById('trScore').style.color=sc>=80?'var(--success)':sc>=60?'var(--gold)':'var(--accent)';}
+    if(latest.steps>0){txt('trSteps',latest.steps.toLocaleString());document.getElementById('trSteps').style.color='var(--secondary)';}
+    if(latest.calories_burned>0){txt('trCal',latest.calories_burned.toLocaleString());document.getElementById('trCal').style.color='var(--accent)';}
+    if(latest.water_intake>0)txt('trWater',latest.water_intake);
+    if(latest.sleep_hours>0)txt('trSleep',latest.sleep_hours+'h');
+    if(latest.heart_rate>0){txt('trHR',latest.heart_rate);document.getElementById('trHR').style.color='var(--accent)';}
+    if(latest.body_weight>0)txt('trWeight',latest.body_weight+' kg');
   }
-
-  if (d && d.charts) {
-    if (d.charts?.scoreData?.some(v=>v>0)){hide('emTr');document.getElementById('trChart').style.display='block';_tr=mkChartInst('trChart',_tr,'line',d.charts.days,[{data:d.charts.scoreData,borderColor:'var(--primary)',backgroundColor:'rgba(37,99,235,0.06)',tension:.4,fill:true,pointRadius:3,spanGaps:true}]);}
-    if (d.charts?.stepsData?.some(v=>v>0)){hide('emSt');document.getElementById('stChart').style.display='block';_stTr=mkChartInst('stChart',_stTr,'bar',d.charts.days,[{data:d.charts.stepsData,backgroundColor:'rgba(124,58,237,0.6)',borderRadius:3}]);}
-    if (d.charts?.calData?.some(v=>v>0)){hide('emCal');document.getElementById('calTrChart').style.display='block';_calTr=mkChartInst('calTrChart',_calTr,'bar',d.charts.days,[{data:d.charts.calData,backgroundColor:'rgba(219,39,119,0.6)',borderRadius:3}]);}
-    if (d.charts?.sleepData?.some(v=>v>0)){hide('emSlp');document.getElementById('slpChart').style.display='block';_slpTr=mkChartInst('slpChart',_slpTr,'line',d.charts.days,[{data:d.charts.sleepData,borderColor:'var(--secondary)',backgroundColor:'rgba(124,58,237,0.06)',tension:.4,fill:true,pointRadius:2,spanGaps:true}]);}
-    if (d.charts?.waterData?.some(v=>v>0)){hide('emWat');document.getElementById('watChart').style.display='block';_watTr=mkChartInst('watChart',_watTr,'bar',d.charts.days,[{data:d.charts.waterData,backgroundColor:'rgba(37,99,235,0.5)',borderRadius:3}]);}
+  if(d&&d.charts){
+    if(d.charts?.scoreData?.some(v=>v>0)){hide('emTr');document.getElementById('trChart').style.display='block';_tr=mkChartInst('trChart',_tr,'line',d.charts.days,[{data:d.charts.scoreData,borderColor:'var(--primary)',backgroundColor:'rgba(37,99,235,0.06)',tension:.4,fill:true,pointRadius:3,spanGaps:true}]);}
+    if(d.charts?.stepsData?.some(v=>v>0)){hide('emSt');document.getElementById('stChart').style.display='block';_stTr=mkChartInst('stChart',_stTr,'bar',d.charts.days,[{data:d.charts.stepsData,backgroundColor:'rgba(124,58,237,0.6)',borderRadius:3}]);}
+    if(d.charts?.calData?.some(v=>v>0)){hide('emCal');document.getElementById('calTrChart').style.display='block';_calTr=mkChartInst('calTrChart',_calTr,'bar',d.charts.days,[{data:d.charts.calData,backgroundColor:'rgba(219,39,119,0.6)',borderRadius:3}]);}
+    if(d.charts?.sleepData?.some(v=>v>0)){hide('emSlp');document.getElementById('slpChart').style.display='block';_slpTr=mkChartInst('slpChart',_slpTr,'line',d.charts.days,[{data:d.charts.sleepData,borderColor:'var(--secondary)',backgroundColor:'rgba(124,58,237,0.06)',tension:.4,fill:true,pointRadius:2,spanGaps:true}]);}
+    if(d.charts?.waterData?.some(v=>v>0)){hide('emWat');document.getElementById('watChart').style.display='block';_watTr=mkChartInst('watChart',_watTr,'bar',d.charts.days,[{data:d.charts.waterData,backgroundColor:'rgba(37,99,235,0.5)',borderRadius:3}]);}
   }
 }
 
 // ═══════════════════════════════════════
 // HISTORY TABLE
 // ═══════════════════════════════════════
-async function loadHist() {
+async function loadHist(){
   try {
-    const d = await api('/checkins');
-    const rows = (d.checkins || []).slice(0, 7);
-    if (!rows.length) return;
-    txt('histCount', `Last ${rows.length} entries`);
-    document.getElementById('histBody').innerHTML =
-      `<div style="display:grid;grid-template-columns:80px 1fr 1fr 1fr 65px 65px 55px;gap:6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px"><span>Date</span><span>Sleep</span><span>Energy</span><span>Mood</span><span>Steps</span><span>Cal</span><span>Score</span></div>` +
-      rows.map(c => `<div style="display:grid;grid-template-columns:80px 1fr 1fr 1fr 65px 65px 55px;gap:6px;font-size:12.5px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">${new Date(c.created_at).toLocaleDateString('en-IN',{month:'short',day:'numeric'})}</span><span style="color:var(--text2)">${c.sleep_hours>0?c.sleep_hours+'h':(c.sleep_quality||'—')}</span><span style="color:var(--text2)">${c.energy_level||'—'}</span><span style="color:var(--text2)">${c.mood||'—'}</span><span style="color:var(--text2)">${c.steps>0?c.steps.toLocaleString():'—'}</span><span style="color:var(--text2)">${c.calories_burned>0?c.calories_burned:'—'}</span><span style="color:${(c.health_score||0)>=70?'var(--success)':(c.health_score||0)>=50?'var(--gold)':'var(--accent)'};font-weight:700">${c.health_score||0}</span></div>`).join('');
-  } catch(e) {}
+    const d=await api('/checkins'); const rows=(d.checkins||[]).slice(0,7); if(!rows.length)return;
+    txt('histCount',`Last ${rows.length} entries`);
+    document.getElementById('histBody').innerHTML=
+      `<div style="display:grid;grid-template-columns:80px 1fr 1fr 1fr 65px 65px 55px;gap:6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px"><span>Date</span><span>Sleep</span><span>Energy</span><span>Mood</span><span>Steps</span><span>Cal</span><span>Score</span></div>`+
+      rows.map(c=>`<div style="display:grid;grid-template-columns:80px 1fr 1fr 1fr 65px 65px 55px;gap:6px;font-size:12.5px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">${new Date(c.created_at).toLocaleDateString('en-IN',{month:'short',day:'numeric'})}</span><span style="color:var(--text2)">${c.sleep_hours>0?c.sleep_hours+'h':(c.sleep_quality||'—')}</span><span style="color:var(--text2)">${c.energy_level||'—'}</span><span style="color:var(--text2)">${c.mood||'—'}</span><span style="color:var(--text2)">${c.steps>0?c.steps.toLocaleString():'—'}</span><span style="color:var(--text2)">${c.calories_burned>0?c.calories_burned:'—'}</span><span style="color:${(c.health_score||0)>=70?'var(--success)':(c.health_score||0)>=50?'var(--gold)':'var(--accent)'};font-weight:700">${c.health_score||0}</span></div>`).join('');
+  } catch(e){}
 }
 
 // ═══════════════════════════════════════
-// DAILY HEALTH REPORT
+// DAILY REPORT
 // ═══════════════════════════════════════
-async function loadDailyReport() {
-  document.getElementById('dailyReportBody').innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px">🧠 Generating your personalized daily health report…<br/><span style="font-size:12px">This may take a few seconds</span></div>`;
+async function loadDailyReport(){
+  document.getElementById('dailyReportBody').innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px">🧠 Generating your personalized daily health report…<br/><span style="font-size:12px">This may take a few seconds</span></div>`;
   try {
-    const d = await api('/ai/daily-report');
-    const report = d.report || d.error || 'Could not generate report.';
-    document.getElementById('dailyReportBody').innerHTML = `
+    const d=await api('/ai/daily-report');
+    const report=d.report||d.error||'Could not generate report.';
+    document.getElementById('dailyReportBody').innerHTML=`
       <div style="font-size:14px;line-height:1.8;color:var(--text2);white-space:pre-wrap">${report.replace(/\n/g,'<br/>')}</div>
       <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-g" onclick="quickAsk('Based on my health report, what specific exercises should I do today?')">💪 Exercise Plan</button>
         <button class="btn btn-g" onclick="quickAsk('What foods should I eat today based on my health data?')">🥗 Food Plan</button>
         <button class="btn btn-p" onclick="goPage('checkin')">✅ Today\'s Check-in</button>
       </div>`;
-  } catch(e) {
-    document.getElementById('dailyReportBody').innerHTML = `<div style="color:var(--accent);padding:16px">⚠️ Could not generate report. Check GROQ_API_KEY in .env. Do at least one check-in first.</div>`;
+  } catch(e){
+    document.getElementById('dailyReportBody').innerHTML=`<div style="color:var(--accent);padding:16px">⚠️ Could not generate report. Check GROQ_API_KEY in .env. Do at least one check-in first.</div>`;
   }
 }
 
 // ═══════════════════════════════════════
 // CHECK-IN
 // ═══════════════════════════════════════
-const ciSteps = [
-  { id:'sq', type:'opts', q:'How did you sleep last night?', opts:['😴 Less than 5h','😐 5–6 hours','😊 7–8 hours','🌟 8+ hours'], hint:'Sleep quality is the biggest factor in your health score.' },
-  { id:'el', type:'opts', q:'How is your energy level right now?', opts:['🪫 Very Low','😐 Low','⚡ Medium','🔥 High'] },
-  { id:'mood', type:'opts', q:'How are you feeling emotionally?', opts:['😔 Sad/Anxious','😐 Neutral','😊 Good','🌟 Great!'] },
-  { id:'activity', type:'fields', q:'🏃 Steps & Activity Today', fields:[
-    { id:'steps', label:'Steps walked today', type:'number', ph:'e.g. 8500', hint:'Check Samsung Health, Google Fit, or iPhone Health' },
-    { id:'cal', label:'Calories burned (kcal)', type:'number', ph:'e.g. 380', hint:'From fitness tracker — or leave blank, we estimate from steps' },
-    { id:'exMins', label:'Exercise duration (minutes)', type:'number', ph:'e.g. 30' },
-    { id:'exType', label:'Exercise type (optional)', type:'text', ph:'e.g. walking, gym, yoga' }
+const ciSteps=[
+  {id:'sq',type:'opts',q:'How did you sleep last night?',opts:['😴 Less than 5h','😐 5–6 hours','😊 7–8 hours','🌟 8+ hours'],hint:'Sleep quality is the biggest factor in your health score.'},
+  {id:'el',type:'opts',q:'How is your energy level right now?',opts:['🪫 Very Low','😐 Low','⚡ Medium','🔥 High']},
+  {id:'mood',type:'opts',q:'How are you feeling emotionally?',opts:['😔 Sad/Anxious','😐 Neutral','😊 Good','🌟 Great!']},
+  {id:'activity',type:'fields',q:'🏃 Steps & Activity Today',fields:[
+    {id:'steps',label:'Steps walked today',type:'number',ph:'e.g. 8500',hint:'💡 Check Google Fit (Android) or Apple Health (iPhone) for your auto-counted steps'},
+    {id:'cal',label:'Calories burned (kcal)',type:'number',ph:'e.g. 380',hint:'From fitness tracker — or leave blank, we estimate from steps'},
+    {id:'exMins',label:'Exercise duration (minutes)',type:'number',ph:'e.g. 30'},
+    {id:'exType',label:'Exercise type (optional)',type:'text',ph:'e.g. walking, gym, yoga'}
   ]},
-  { id:'hydration', type:'fields', q:'💧 Hydration & Body', fields:[
-    { id:'water', label:'Water intake (glasses)', type:'number', ph:'e.g. 6', hint:'1 glass = 250ml · Daily goal: 8 glasses' },
-    { id:'sleepHrs', label:'Exact sleep hours', type:'number', step:'0.5', ph:'e.g. 7.5', hint:'For accurate health score' },
-    { id:'bweight', label:'Body weight today (kg, optional)', type:'number', step:'0.1', ph:'e.g. 68.5' },
-    { id:'hr', label:'Heart Rate (bpm, optional)', type:'number', ph:'e.g. 72', hint:'From smartwatch or pulse check' }
+  {id:'hydration',type:'fields',q:'💧 Hydration & Body',fields:[
+    {id:'water',label:'Water intake (glasses)',type:'number',ph:'e.g. 6',hint:'1 glass = 250ml · Daily goal: 8 glasses'},
+    {id:'sleepHrs',label:'Exact sleep hours',type:'number',step:'0.5',ph:'e.g. 7.5',hint:'For accurate health score'},
+    {id:'bweight',label:'Body weight today (kg, optional)',type:'number',step:'0.1',ph:'e.g. 68.5'},
+    {id:'hr',label:'Heart Rate (bpm, optional)',type:'number',ph:'e.g. 72',hint:'From smartwatch or pulse check'}
   ]},
-  { id:'notes', type:'textarea', q:'📝 Notes for today (optional)', ph:'e.g. Felt headache in morning, skipped lunch, stressed about work...' }
+  {id:'notes',type:'textarea',q:'📝 Notes for today (optional)',ph:'e.g. Felt headache in morning, skipped lunch, stressed about work...'}
 ];
-
-function renderCI() {
-  if (ciStep >= ciSteps.length) { showCIDone(); return; }
-  for (let i=0;i<6;i++) document.getElementById('d'+i).className='pd '+(i<ciStep?'done':i===ciStep?'cur':'');
-  const s = ciSteps[ciStep];
-  let html = `<div style="margin-bottom:14px"><div class="ci-q">Step ${ciStep+1}/6: ${s.q}</div>${s.hint?`<div style="font-size:11.5px;color:var(--primary);margin-top:3px;opacity:0.85">${s.hint}</div>`:''}</div>`;
-  if (s.type==='opts') {
-    html += `<div class="ci-opts">${s.opts.map(o=>`<div class="ci-opt" onclick="pickCI('${o.replace(/'/g,"\\'")}',this)">${o}</div>`).join('')}</div>`;
-  } else if (s.type==='fields') {
-    html += s.fields.map(f=>`<div style="margin-bottom:12px"><label class="fi-label">${f.label}</label>${f.hint?`<div class="fi-hint">${f.hint}</div>`:''}<input type="${f.type}" id="ci_${f.id}" class="fi" placeholder="${f.ph}" ${f.step?'step='+f.step:''} oninput="ciAns['${f.id}']=this.value"/></div>`).join('');
-  } else if (s.type==='textarea') {
-    html += `<textarea id="ci_notes" class="fi" style="min-height:90px;resize:vertical" placeholder="${s.ph}" oninput="ciAns.notes=this.value"></textarea>`;
+function renderCI(){
+  if(ciStep>=ciSteps.length){showCIDone();return;}
+  for(let i=0;i<6;i++)document.getElementById('d'+i).className='pd '+(i<ciStep?'done':i===ciStep?'cur':'');
+  const s=ciSteps[ciStep];
+  let html=`<div style="margin-bottom:14px"><div class="ci-q">Step ${ciStep+1}/6: ${s.q}</div>${s.hint?`<div style="font-size:11.5px;color:var(--primary);margin-top:3px;opacity:0.85">${s.hint}</div>`:''}</div>`;
+  if(s.type==='opts'){
+    html+=`<div class="ci-opts">${s.opts.map(o=>`<div class="ci-opt" onclick="pickCI('${o.replace(/'/g,"\\'")}',this)">${o}</div>`).join('')}</div>`;
+  } else if(s.type==='fields'){
+    html+=s.fields.map(f=>`<div style="margin-bottom:12px"><label class="fi-label">${f.label}</label>${f.hint?`<div class="fi-hint">${f.hint}</div>`:''}<input type="${f.type}" id="ci_${f.id}" class="fi" placeholder="${f.ph}" ${f.step?'step='+f.step:''} oninput="ciAns['${f.id}']=this.value"/></div>`).join('');
+    if(s.id==='activity'){
+      html+=`<div id="liveStepBox" style="margin-bottom:14px;background:linear-gradient(135deg,rgba(124,58,237,0.08),rgba(37,99,235,0.08));border:1.5px solid rgba(124,58,237,0.25);border-radius:14px;padding:14px 16px"><div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:4px">📱 Live Step Counter</div><div style="font-size:12px;color:var(--muted);margin-bottom:10px">No Google Fit needed — uses your phone sensor. Walk with phone in pocket or hand.</div><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button id="stepCounterBtn" onclick="toggleStepCounter()" type="button" style="padding:10px 20px;border-radius:30px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;background:linear-gradient(135deg,var(--secondary),var(--primary));color:#fff;box-shadow:0 3px 12px rgba(124,58,237,0.3);transition:all .2s;white-space:nowrap">🚶 Start Counting</button><div style="text-align:center"><div id="liveStepCount" style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--secondary);line-height:1">0</div><div style="font-size:10px;color:var(--muted)">steps counted</div></div><button id="stepUseBtn" onclick="useCountedSteps()" type="button" style="display:none;padding:10px 20px;border-radius:30px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;background:var(--success);color:#fff;white-space:nowrap">✅ Use This</button></div><div id="stepCounterStatus" style="font-size:11.5px;color:var(--muted);margin-top:8px">Press Start — keep phone in hand or pocket while walking.</div><div id="stepCounterNote" style="display:none;font-size:11px;color:var(--accent);margin-top:6px">⚠️ iOS: tap Allow when browser asks for motion permission.</div></div>`;
+    }
+  } else if(s.type==='textarea'){
+    html+=`<textarea id="ci_notes" class="fi" style="min-height:90px;resize:vertical" placeholder="${s.ph}" oninput="ciAns.notes=this.value"></textarea>`;
   }
-  html += `<div style="display:flex;gap:10px;margin-top:18px">${ciStep>0?`<button class="btn btn-g" style="flex:1" onclick="ciStep--;renderCI()">← Back</button>`:''}<button class="btn btn-p" style="flex:2" onclick="nextCI()" id="ciNext" ${s.type==='opts'?'disabled':''}>${ciStep<ciSteps.length-1?'Next →':'✅ Save Check-in'}</button></div>`;
-  document.getElementById('ciContent').innerHTML = html;
-  if (s.type==='fields') s.fields.forEach(f=>{const el=document.getElementById('ci_'+f.id);if(el&&ciAns[f.id])el.value=ciAns[f.id];});
-  if (s.type==='textarea'){const el=document.getElementById('ci_notes');if(el&&ciAns.notes)el.value=ciAns.notes;}
+  html+=`<div style="display:flex;gap:10px;margin-top:18px">${ciStep>0?`<button class="btn btn-g" style="flex:1" onclick="ciStep--;renderCI()">← Back</button>`:''}<button class="btn btn-p" style="flex:2" onclick="nextCI()" id="ciNext" ${s.type==='opts'?'disabled':''}>${ciStep<ciSteps.length-1?'Next →':'✅ Save Check-in'}</button></div>`;
+  document.getElementById('ciContent').innerHTML=html;
+  if(s.type==='fields')s.fields.forEach(f=>{const el=document.getElementById('ci_'+f.id);if(el&&ciAns[f.id])el.value=ciAns[f.id];});
+  if(s.type==='textarea'){const el=document.getElementById('ci_notes');if(el&&ciAns.notes)el.value=ciAns.notes;}
 }
 function pickCI(v,el){document.querySelectorAll('.ci-opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');ciAns[ciSteps[ciStep].id]=v;document.getElementById('ciNext').disabled=false;}
 function nextCI(){ciStep++;ciStep>=ciSteps.length?showCIDone():renderCI();}
-
-function showCIDone() {
-  for(let i=0;i<6;i++) document.getElementById('d'+i).className='pd done';
+function showCIDone(){
+  for(let i=0;i<6;i++)document.getElementById('d'+i).className='pd done';
   const sleepMap={'Less than 5h':4,'5–6 hours':5.5,'7–8 hours':7.5,'8+ hours':8.5};
   const sqKey=Object.keys(sleepMap).find(k=>(ciAns.sq||'').includes(k));
   const sleepHrs=ciAns.sleepHrs?parseFloat(ciAns.sleepHrs):(sqKey?sleepMap[sqKey]:0);
@@ -909,33 +873,123 @@ function addMsg(t,type){const box=document.getElementById('chatMsgs');const d=do
 function quickAsk(q){goPage('aichat');setTimeout(()=>{document.getElementById('chatIn').value=q;sendChat();},200);}
 
 // ═══════════════════════════════════════
-// VOICE
+// VOICE COACH — Toggle Activate/Stop
 // ═══════════════════════════════════════
-let mRec=null,aChunks=[];
-async function startVoice(){
-  document.getElementById('vOrb').classList.add('listening');txt('vStatus','🔴 Listening… speak clearly');
-  try{const s=await navigator.mediaDevices.getUserMedia({audio:true});mRec=new MediaRecorder(s,{mimeType:'audio/webm'});aChunks=[];mRec.ondataavailable=e=>{if(e.data.size>0)aChunks.push(e.data);};mRec.start(100);}
-  catch(e){txt('vStatus','❌ Microphone not available');}
+let voiceActive = false;
+let mRec = null;
+let aChunks = [];
+
+function toggleVoice() {
+  if (!voiceActive) {
+    startVoiceRecording();
+  } else {
+    stopVoiceRecording();
+  }
 }
-async function stopVoice(){
-  document.getElementById('vOrb').classList.remove('listening');txt('vStatus','⏳ Processing…');
-  if(!mRec)return;mRec.stop();
-  mRec.onstop=async()=>{
-    const blob=new Blob(aChunks,{type:'audio/webm'});
-    if(blob.size<500){txt('vStatus','⚠️ Too short. Hold longer.');return;}
-    try{
-      const r=await fetch('/voice/chat',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'audio/webm'},body:blob});
-      if(!r.ok){const e=await r.json();txt('vStatus','⚠️ '+(e.error||'Voice error'));return;}
-      const uT=decodeURIComponent(r.headers.get('X-User-Text')||'');
-      const aT=decodeURIComponent(r.headers.get('X-Agent-Text')||'');
-      const audioBlob=await r.blob();new Audio(URL.createObjectURL(audioBlob)).play();
-      txt('vTrans',`You: ${uT}\nAI: ${aT}`);txt('vStatus','✅ Done — hold again to speak');
-      const h=document.getElementById('vHistory');
-      h.innerHTML+=`<div style="padding:8px 11px;background:var(--pdim);border-radius:9px;border-left:3px solid var(--primary);color:var(--text2)"><b>You:</b> ${uT}</div>`;
-      h.innerHTML+=`<div style="padding:8px 11px;background:var(--surface2);border-radius:9px;border-left:3px solid var(--secondary);color:var(--text2)"><b>Coach:</b> ${aT}</div>`;
-      h.scrollTop=h.scrollHeight;
-    }catch(e){txt('vStatus','⚠️ Voice agent offline. Start voice_agent.py');}
+
+async function startVoiceRecording() {
+  try {
+    // Detect supported mimeType across browsers
+    const mimeType = getSupportedMimeType();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    mRec = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    aChunks = [];
+
+    mRec.ondataavailable = e => { if (e.data && e.data.size > 0) aChunks.push(e.data); };
+    mRec.start(100);
+
+    voiceActive = true;
+    // Update button to STOP state
+    document.getElementById('voiceBtnIcon').textContent = '⏹️';
+    document.getElementById('voiceBtnLabel').textContent = 'Stop & Send';
+    document.getElementById('voiceToggleBtn').style.background = 'linear-gradient(135deg,var(--accent),#b91c6c)';
+    document.getElementById('voicePulse').style.display = 'flex';
+    txt('vStatus', '🔴 Recording… speak now, press Stop when done');
+
+  } catch (e) {
+    txt('vStatus', '❌ Microphone not available. Check browser permissions.');
+  }
+}
+
+function stopVoiceRecording() {
+  if (!mRec) return;
+  voiceActive = false;
+
+  // Reset button to ACTIVATE state
+  document.getElementById('voiceBtnIcon').textContent = '🎙️';
+  document.getElementById('voiceBtnLabel').textContent = 'Activate Voice';
+  document.getElementById('voiceToggleBtn').style.background = 'linear-gradient(135deg,var(--primary),var(--secondary))';
+  document.getElementById('voicePulse').style.display = 'none';
+  txt('vStatus', '⏳ Processing your voice…');
+
+  mRec.onstop = async () => {
+    // Stop all microphone tracks
+    if (mRec.stream) mRec.stream.getTracks().forEach(t => t.stop());
+
+    const mimeType = mRec.mimeType || 'audio/webm';
+    const blob = new Blob(aChunks, { type: mimeType });
+
+    if (blob.size < 500) {
+      txt('vStatus', '⚠️ Too short. Press Activate and speak more.');
+      return;
+    }
+
+    try {
+      const r = await fetch('/voice/chat', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        txt('vStatus', '⚠️ ' + (e.error || 'Voice agent error'));
+        return;
+      }
+
+      const uT = decodeURIComponent(r.headers.get('X-User-Text') || '');
+      const aT = decodeURIComponent(r.headers.get('X-Agent-Text') || '');
+
+      // ── FIX: create audio with explicit WAV type ──
+      const audioBuffer = await r.arrayBuffer();
+      const audioBlob   = new Blob([audioBuffer], { type: 'audio/wav' });
+      const audioUrl    = URL.createObjectURL(audioBlob);
+      const audio       = new Audio();
+
+      audio.src = audioUrl;
+      audio.onerror = () => {
+        // WAV failed on some browsers — show text response at least
+        txt('vStatus', '✅ AI replied (audio unsupported on this browser)');
+      };
+      audio.onended = () => URL.revokeObjectURL(audioUrl);
+      audio.play().catch(() => {
+        txt('vStatus', '✅ Done (tap play to hear if audio blocked)');
+      });
+
+      txt('vTrans', `You: ${uT}\nAI: ${aT}`);
+      txt('vStatus', '✅ Done — press Activate to speak again');
+
+      const h = document.getElementById('vHistory');
+      if (h.querySelector('div[style*="italic"]')) h.innerHTML = '';
+      h.innerHTML += `<div style="padding:8px 11px;background:var(--pdim);border-radius:9px;border-left:3px solid var(--primary);color:var(--text2)"><b>You:</b> ${uT}</div>`;
+      h.innerHTML += `<div style="padding:8px 11px;background:var(--surface2);border-radius:9px;border-left:3px solid var(--secondary);color:var(--text2)"><b>Coach:</b> ${aT}</div>`;
+      h.scrollTop = h.scrollHeight;
+
+    } catch (e) {
+      txt('vStatus', '⚠️ Voice agent offline. Make sure voice_agent.py is running.');
+    }
   };
+
+  mRec.stop();
+}
+
+function getSupportedMimeType() {
+  const types = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg','audio/mp4'];
+  for (const t of types) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
 }
 
 // ═══════════════════════════════════════
@@ -1001,7 +1055,16 @@ async function loadProfile(){
     if(u.gender)document.getElementById('pfGender').value=u.gender;
     if(u.activity_level)document.getElementById('pfActivity').value=u.activity_level;
     if(u.phone)document.getElementById('pfPhone').value=u.phone;
-    if(u.img){document.getElementById('pfImgPreview').src='/uploads/'+u.img;document.getElementById('pfImgPreview').style.display='block';document.getElementById('pfImgPlaceholder').style.display='none';document.getElementById('userAvImg').src='/uploads/'+u.img;document.getElementById('userAvImg').style.display='block';document.getElementById('userAvLetter').style.display='none';}
+    // FIX: use /uploads/ prefix correctly for profile image
+    if(u.img){
+      const imgSrc='/uploads/'+u.img;
+      document.getElementById('pfImgPreview').src=imgSrc;
+      document.getElementById('pfImgPreview').style.display='block';
+      document.getElementById('pfImgPlaceholder').style.display='none';
+      document.getElementById('userAvImg').src=imgSrc;
+      document.getElementById('userAvImg').style.display='block';
+      document.getElementById('userAvLetter').style.display='none';
+    }
     updateProfileBadges(u);
   }catch(e){}
 }
@@ -1024,7 +1087,8 @@ async function saveProfile(){
     const d=await r.json();
     if(d.message){
       msgEl.innerHTML=`<span style="color:var(--success)">✅ ${d.message} — BMI & calorie goal updated!</span>`;
-      txt('pfDisplayName',document.getElementById('pfName').value);txt('sidebarName',document.getElementById('pfName').value);
+      txt('pfDisplayName',document.getElementById('pfName').value);
+      txt('sidebarName',document.getElementById('pfName').value);
       const u={name:document.getElementById('pfName').value,age:parseInt(document.getElementById('pfAge').value),weight:parseFloat(document.getElementById('pfWeight').value),height:parseFloat(document.getElementById('pfHeight').value),gender:document.getElementById('pfGender').value,activity_level:document.getElementById('pfActivity').value};
       updateProfileBadges(u);loadDash();
     }else{msgEl.innerHTML=`<span style="color:var(--accent)">⚠️ ${d.message||'Error saving'}</span>`;}
@@ -1081,7 +1145,119 @@ function vis(id,show,d='block'){const el=document.getElementById(id);if(el)el.st
 function hide(id){const el=document.getElementById(id);if(el)el.style.display='none';}
 function setSub(id,t,good){const el=document.getElementById(id);if(!el)return;el.textContent=t;el.className='sc-sub '+(good?'up':'down');el.style.color='';}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-</script>
 
+// ═══════════════════════════════════════
+// LIVE STEP COUNTER — Device Accelerometer
+// ═══════════════════════════════════════
+let stepCounterActive = false;
+let stepCount = 0;
+let lastAccelMag = 0;
+let stepThreshold = 12;    // sensitivity — tune if too sensitive/not sensitive
+let stepCooldown  = 250;   // ms minimum between steps
+let lastStepTime  = 0;
+let accelListener = null;
+
+function toggleStepCounter() {
+  if (!stepCounterActive) {
+    startStepCounter();
+  } else {
+    stopStepCounter();
+  }
+}
+
+async function startStepCounter() {
+  // iOS 13+ requires explicit permission
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    try {
+      const perm = await DeviceMotionEvent.requestPermission();
+      if (perm !== 'granted') {
+        document.getElementById('stepCounterStatus').textContent = '❌ Motion permission denied. Allow in Safari Settings.';
+        return;
+      }
+    } catch(e) {
+      document.getElementById('stepCounterStatus').textContent = '❌ Could not request motion permission.';
+      return;
+    }
+  }
+
+  if (typeof DeviceMotionEvent === 'undefined') {
+    document.getElementById('stepCounterStatus').textContent = '⚠️ This device/browser does not support motion detection. Enter steps manually above.';
+    return;
+  }
+
+  stepCounterActive = true;
+  stepCount = 0;
+  lastAccelMag = 0;
+  lastStepTime = 0;
+
+  accelListener = function(event) {
+    const acc = event.accelerationIncludingGravity;
+    if (!acc) return;
+    const mag = Math.sqrt((acc.x||0)**2 + (acc.y||0)**2 + (acc.z||0)**2);
+    const delta = Math.abs(mag - lastAccelMag);
+    lastAccelMag = mag;
+    const now = Date.now();
+    if (delta > stepThreshold && (now - lastStepTime) > stepCooldown) {
+      stepCount++;
+      lastStepTime = now;
+      const el = document.getElementById('liveStepCount');
+      if (el) el.textContent = stepCount;
+    }
+  };
+
+  window.addEventListener('devicemotion', accelListener);
+
+  // Update UI
+  const btn = document.getElementById('stepCounterBtn');
+  if (btn) {
+    btn.textContent = '⏹ Stop Counting';
+    btn.style.background = 'linear-gradient(135deg,var(--accent),#b91c6c)';
+  }
+  const useBtn = document.getElementById('stepUseBtn');
+  if (useBtn) useBtn.style.display = 'none';
+  const status = document.getElementById('stepCounterStatus');
+  if (status) status.textContent = '🔴 Counting… walk now. Press Stop when done.';
+  const note = document.getElementById('stepCounterNote');
+  if (note) note.style.display = 'block';
+}
+
+function stopStepCounter() {
+  stepCounterActive = false;
+  if (accelListener) {
+    window.removeEventListener('devicemotion', accelListener);
+    accelListener = null;
+  }
+
+  const btn = document.getElementById('stepCounterBtn');
+  if (btn) {
+    btn.textContent = '🚶 Start Again';
+    btn.style.background = 'linear-gradient(135deg,var(--secondary),var(--primary))';
+  }
+  const useBtn = document.getElementById('stepUseBtn');
+  if (useBtn) useBtn.style.display = stepCount > 0 ? 'block' : 'none';
+  const status = document.getElementById('stepCounterStatus');
+  if (status) status.textContent = stepCount > 0
+    ? `✅ Counted ${stepCount} steps. Press "Use This" to auto-fill, or start again.`
+    : '⚠️ No steps detected. Make sure phone is in hand/pocket while walking.';
+}
+
+function useCountedSteps() {
+  if (stepCount <= 0) return;
+  const stepsInput = document.getElementById('ci_steps');
+  if (stepsInput) {
+    stepsInput.value = stepCount;
+    ciAns['steps'] = String(stepCount);
+  }
+  const status = document.getElementById('stepCounterStatus');
+  if (status) status.textContent = `✅ ${stepCount} steps filled in above!`;
+  const useBtn = document.getElementById('stepUseBtn');
+  if (useBtn) useBtn.style.display = 'none';
+  // Reset for next walk
+  stepCount = 0;
+  const countEl = document.getElementById('liveStepCount');
+  if (countEl) countEl.textContent = '0';
+}
+
+</script>
 </body>
 </html>

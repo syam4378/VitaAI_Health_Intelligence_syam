@@ -7,8 +7,6 @@ const cors    = require('cors');
 const path    = require('path');
 const multer  = require('multer');
 const fs      = require('fs');
-const http    = require('http');
-const https   = require('https');
 const fetch   = require('node-fetch');
 
 const FACE_URL  = process.env.FACE_SERVER_URL  || 'http://localhost:5000';
@@ -25,7 +23,7 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) =>
+  filename:    (req, file, cb) =>
     cb(null, `user_${req.user?.id || 'x'}_${Date.now()}${path.extname(file.originalname)}`)
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
@@ -57,12 +55,10 @@ function createConnection() {
 
   db.on('error', err => {
     console.error('DB error:', err.code);
-    if (['PROTOCOL_CONNECTION_LOST', 'ECONNRESET', 'ETIMEDOUT'].includes(err.code) || err.fatal) {
+    if (['PROTOCOL_CONNECTION_LOST','ECONNRESET','ETIMEDOUT'].includes(err.code) || err.fatal) {
       console.log('Reconnecting to DB...');
       createConnection();
-    } else {
-      throw err;
-    }
+    } else { throw err; }
   });
 }
 
@@ -74,11 +70,8 @@ function q(sql, params = []) {
   );
 }
 
-// ── KEEP DB ALIVE ─────────────────────────────────────────
 setInterval(() => {
-  db.query('SELECT 1', err => {
-    if (err) console.error('DB ping failed:', err.code);
-  });
+  db.query('SELECT 1', err => { if (err) console.error('DB ping failed:', err.code); });
 }, 4 * 60 * 1000);
 
 // ── CREATE TABLES ─────────────────────────────────────────
@@ -214,30 +207,20 @@ async function callAI(messages, systemPrompt, maxTokens = 600) {
   throw new Error('No AI API key configured.');
 }
 
-// ── PYTHON PROXY ──────────────────────────────────────────
-function callPython(baseUrl, route, body) {
-  return new Promise((rv, rj) => {
-    const data      = JSON.stringify(body);
-    const url       = new URL(baseUrl);
-    const isHttps   = url.protocol === 'https:';
-    const port      = url.port ? parseInt(url.port) : (isHttps ? 443 : 80);
-    const transport = isHttps ? https : http;
-
-    const req = transport.request({
-      hostname: url.hostname, port, path: route, method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
-    }, res => {
-      let raw = '';
-      res.on('data', c => raw += c);
-      res.on('end', () => {
-        try   { rv(JSON.parse(raw)); }
-        catch { rj(new Error('Bad response from Python server')); }
-      });
-    });
-    req.on('error', e => rj(new Error('Python server unreachable: ' + e.message)));
-    req.write(data);
-    req.end();
+// ── PYTHON PROXY — uses node-fetch (handles HTTPS/redirects properly) ──
+async function callPython(baseUrl, route, body) {
+  const url = baseUrl.replace(/\/$/, '') + route;
+  const r = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+    timeout: 30000,
   });
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`Face server error ${r.status}: ${txt}`);
+  }
+  return r.json();
 }
 
 // ── PAGES ─────────────────────────────────────────────────
@@ -252,46 +235,52 @@ app.post('/face/register', async (req, res) => {
   try   { res.json(await callPython(FACE_URL, '/face/register', req.body)); }
   catch (e) { res.status(500).json({ ok: false, msg: e.message }); }
 });
+
 app.post('/face/verify', async (req, res) => {
   try   { res.json(await callPython(FACE_URL, '/face/verify', req.body)); }
   catch (e) { res.status(500).json({ ok: false, msg: e.message }); }
 });
+
 app.post('/face/emotion', async (req, res) => {
   try   { res.json(await callPython(FACE_URL, '/face/emotion', req.body)); }
   catch { res.status(200).json({ emotion: 'neutral', ok: false }); }
 });
 
-// ── VOICE ROUTE ───────────────────────────────────────────
-app.post('/voice/chat', verifyToken, (req, res) => {
+// ── VOICE ROUTE — proxy to voice agent ───────────────────
+app.post('/voice/chat', verifyToken, async (req, res) => {
   const chunks = [];
   req.on('data', c => chunks.push(c));
-  req.on('end', () => {
-    const audio     = Buffer.concat(chunks);
-    const url       = new URL(VOICE_URL);
-    const isHttps   = url.protocol === 'https:';
-    const port      = url.port ? parseInt(url.port) : (isHttps ? 443 : 80);
-    const transport = isHttps ? https : http;
+  req.on('end', async () => {
+    const audio = Buffer.concat(chunks);
+    try {
+      const voiceRes = await fetch(`${VOICE_URL}/voice/chat`, {
+        method:  'POST',
+        headers: {
+          'Content-Type':   req.headers['content-type'] || 'audio/webm',
+          'Content-Length': audio.length,
+        },
+        body: audio,
+      });
 
-    const pr = transport.request({
-      hostname: url.hostname, port, path: '/voice/chat', method: 'POST',
-      headers: {
-        'Content-Type':   req.headers['content-type'] || 'audio/webm',
-        'Content-Length': audio.length,
-      },
-    }, proxyRes => {
+      if (!voiceRes.ok) {
+        const err = await voiceRes.json().catch(() => ({}));
+        return res.status(500).json({ error: err.error || 'Voice agent error' });
+      }
+
+      const audioBuffer = await voiceRes.buffer();
       res.set({
         'Content-Type':                  'audio/wav',
-        'Cache-Control':                 'no-cache',
+        'Content-Length':                audioBuffer.length,
+        'Cache-Control':                 'no-cache, no-store',
         'Accept-Ranges':                 'none',
-        'X-User-Text':                   proxyRes.headers['x-user-text']  || '',
-        'X-Agent-Text':                  proxyRes.headers['x-agent-text'] || '',
+        'X-User-Text':                   voiceRes.headers.get('x-user-text')  || '',
+        'X-Agent-Text':                  voiceRes.headers.get('x-agent-text') || '',
         'Access-Control-Expose-Headers': 'X-User-Text, X-Agent-Text',
       });
-      proxyRes.pipe(res);
-    });
-    pr.on('error', () => res.status(500).json({ error: 'Voice agent offline.' }));
-    pr.write(audio);
-    pr.end();
+      res.send(audioBuffer);
+    } catch (e) {
+      res.status(500).json({ error: 'Voice agent offline: ' + e.message });
+    }
   });
 });
 
@@ -314,7 +303,10 @@ app.post('/login', (req, res) => {
   db.query('SELECT * FROM users WHERE email=?', [email], async (err, r) => {
     if (err || !r.length) return res.json({ message: 'User not found' });
     if (!await bcrypt.compare(password, r[0].password)) return res.json({ message: 'Wrong password' });
-    res.json({ token: jwt.sign({ id: r[0].id, name: r[0].name, email: r[0].email, role: r[0].role }, process.env.JWT_SECRET, { expiresIn: '24h' }) });
+    res.json({ token: jwt.sign(
+      { id: r[0].id, name: r[0].name, email: r[0].email, role: r[0].role },
+      process.env.JWT_SECRET, { expiresIn: '24h' }
+    )});
   });
 });
 
@@ -324,7 +316,10 @@ app.post('/face-login', (req, res) => {
   db.query('SELECT * FROM users WHERE email=?', [email], (err, r) => {
     if (err)       return res.status(500).json({ message: 'DB error' });
     if (!r.length) return res.json({ message: 'User not found' });
-    res.json({ token: jwt.sign({ id: r[0].id, name: r[0].name, email: r[0].email, role: r[0].role }, process.env.JWT_SECRET, { expiresIn: '24h' }) });
+    res.json({ token: jwt.sign(
+      { id: r[0].id, name: r[0].name, email: r[0].email, role: r[0].role },
+      process.env.JWT_SECRET, { expiresIn: '24h' }
+    )});
   });
 });
 
@@ -445,128 +440,85 @@ app.get('/dashboard/stats', verifyToken, async (req, res) => {
   try {
     const profRows = await q('SELECT * FROM profile WHERE user_id=?', [uid]);
     const prof     = profRows[0] || null;
-
-    // Fetch up to 30 most recent check-ins (always sorted newest first)
     const checkins = await q(
-      'SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 30',
-      [uid]
+      'SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 30', [uid]
     );
-
     const total   = checkins.length;
-    // lastRow = the single most recent check-in ever (our guaranteed fallback)
     const lastRow = checkins[0] || null;
 
-    // ── "TODAY" detection: robust against UTC/IST timezone offset on Render ──
-    // Strategy: check-in is "today" if it was created within the last 30 hours.
-    // This covers IST (+5:30) users whose midnight check-ins land on yesterday UTC.
     let todayRow = null;
     if (lastRow) {
-      const nowMs       = Date.now();
-      const createdMs   = new Date(lastRow.created_at).getTime();
-      const hoursAgo    = (nowMs - createdMs) / (1000 * 60 * 60);
-      if (hoursAgo <= 30) {
-        todayRow = lastRow; // most recent check-in is fresh enough = "today"
-      }
+      const hoursAgo = (Date.now() - new Date(lastRow.created_at).getTime()) / (1000*60*60);
+      if (hoursAgo <= 30) todayRow = lastRow;
     }
 
-    // ── Score: show the LATEST check-in score, not an old average ──
-    // Also compute a 7-day average for the subtitle
     const latestScore = lastRow ? (lastRow.health_score || 0) : 0;
-    const withScore   = checkins.slice(0, 7).filter(c => (c.health_score || 0) > 0);
+    const withScore   = checkins.slice(0,7).filter(c=>(c.health_score||0)>0);
     const avgScore    = withScore.length
-      ? Math.round(withScore.reduce((s, c) => s + c.health_score, 0) / withScore.length)
-      : 0;
-    // Use latest score as primary display; fall back to avg if latest is 0
+      ? Math.round(withScore.reduce((s,c)=>s+c.health_score,0)/withScore.length) : 0;
     const displayScore = latestScore > 0 ? latestScore : avgScore;
 
-    // ── Streak (robust: compare dates in local-style using UTC date string) ──
     let streak = 0;
-    const dateSet = new Set(
-      checkins.map(c => new Date(c.created_at).toISOString().slice(0, 10))
-    );
+    const dateSet = new Set(checkins.map(c=>new Date(c.created_at).toISOString().slice(0,10)));
     let chk = new Date();
-    for (let i = 0; i < 60; i++) {
-      const key = chk.toISOString().slice(0, 10);
-      if (dateSet.has(key)) { streak++; chk.setDate(chk.getDate() - 1); }
-      else if (i === 0) { chk.setDate(chk.getDate() - 1); } // skip today if no check-in yet
+    for (let i=0;i<60;i++) {
+      const key = chk.toISOString().slice(0,10);
+      if (dateSet.has(key)) { streak++; chk.setDate(chk.getDate()-1); }
+      else if (i===0) { chk.setDate(chk.getDate()-1); }
       else break;
     }
 
     const calorieGoal = calcCalGoal(prof);
-    let bmi = null, bmiLabel = '';
+    let bmi=null, bmiLabel='';
     if (prof?.weight && prof?.height) {
-      const h = prof.height / 100;
-      bmi = (prof.weight / (h * h)).toFixed(1);
+      const h = prof.height/100;
+      bmi = (prof.weight/(h*h)).toFixed(1);
       const b = parseFloat(bmi);
-      bmiLabel = b < 18.5 ? 'Underweight' : b < 25 ? 'Normal ✅' : b < 30 ? 'Overweight' : 'Obese';
+      bmiLabel = b<18.5?'Underweight':b<25?'Normal ✅':b<30?'Overweight':'Obese';
     }
 
-    const chartData = checkins.slice(0, total >= 14 ? 30 : 7).reverse();
-    const days      = chartData.map(c =>
-      new Date(c.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
-    );
-    const moodScore = { 'Great!': 5, 'Good': 4, 'Neutral': 3, 'Sad/Anxious': 1 };
+    const chartData = checkins.slice(0, total>=14?30:7).reverse();
+    const days = chartData.map(c=>new Date(c.created_at).toLocaleDateString('en-IN',{month:'short',day:'numeric'}));
+    const moodScore = {'Great!':5,'Good':4,'Neutral':3,'Sad/Anxious':1};
 
-    // Helper: format a DB row into the standard stat shape sent to frontend
     function fmtCheckin(c) {
       if (!c) return null;
       return {
-        sleep:            c.sleep_quality,
-        sleep_hours:      c.sleep_hours,
-        energy:           c.energy_level,
-        mood:             c.mood,
-        water:            c.water_intake,
-        steps:            c.steps,
-        calories:         c.calories_burned,
-        exercise_done:    c.exercise_done,
-        exercise_minutes: c.exercise_minutes,
-        exercise_type:    c.exercise_type,
-        body_weight:      c.body_weight,
-        heart_rate:       c.heart_rate,
-        health_score:     c.health_score,
+        sleep:c.sleep_quality, sleep_hours:c.sleep_hours, energy:c.energy_level, mood:c.mood,
+        water:c.water_intake, steps:c.steps, calories:c.calories_burned,
+        exercise_done:c.exercise_done, exercise_minutes:c.exercise_minutes,
+        exercise_type:c.exercise_type, body_weight:c.body_weight, heart_rate:c.heart_rate,
+        health_score:c.health_score,
       };
     }
 
     res.json({
-      hasData:       total > 0,
-      score:         displayScore,   // ← always the latest score
-      avgScore,                      // ← 7-day average (for subtitle)
-      totalCheckins: total,
-      streak,
-      calorieGoal,
-      bmi,
-      bmiLabel,
-      profile: prof
-        ? { age: prof.age, weight: prof.weight, height: prof.height,
-            blood_group: prof.blood_group, gender: prof.gender,
-            activity_level: prof.activity_level }
-        : null,
-      today: fmtCheckin(todayRow),  // recent check-in (≤30h) or null
-      last:  fmtCheckin(lastRow),   // ALWAYS the most recent ever — never null if total>0
-      charts: {
+      hasData:true, score:displayScore, avgScore, totalCheckins:total, streak,
+      calorieGoal, bmi, bmiLabel,
+      profile: prof ? {age:prof.age,weight:prof.weight,height:prof.height,blood_group:prof.blood_group,gender:prof.gender,activity_level:prof.activity_level} : null,
+      today:fmtCheckin(todayRow), last:fmtCheckin(lastRow),
+      charts:{
         days,
-        scoreData: chartData.map(c => c.health_score || 0),
-        moodData:  chartData.map(c => {
-          for (const [k, v] of Object.entries(moodScore)) {
-            if ((c.mood || '').includes(k)) return v;
-          }
+        scoreData:chartData.map(c=>c.health_score||0),
+        moodData:chartData.map(c=>{
+          for(const[k,v] of Object.entries(moodScore)){if((c.mood||'').includes(k))return v;}
           return null;
         }),
-        sleepData: chartData.map(c => {
-          if (c.sleep_hours > 0) return parseFloat(c.sleep_hours);
-          const sq = c.sleep_quality || '';
-          if (sq.includes('8+')) return 8.5;
-          if (sq.includes('7-8') || sq.includes('7–8')) return 7.5;
-          if (sq.includes('5-6') || sq.includes('5–6')) return 5.5;
+        sleepData:chartData.map(c=>{
+          if(c.sleep_hours>0)return parseFloat(c.sleep_hours);
+          const sq=c.sleep_quality||'';
+          if(sq.includes('8+'))return 8.5;
+          if(sq.includes('7-8')||sq.includes('7–8'))return 7.5;
+          if(sq.includes('5-6')||sq.includes('5–6'))return 5.5;
           return null;
         }),
-        stepsData: chartData.map(c => c.steps || 0),
-        calData:   chartData.map(c => c.calories_burned || 0),
-        waterData: chartData.map(c => c.water_intake || 0),
+        stepsData:chartData.map(c=>c.steps||0),
+        calData:chartData.map(c=>c.calories_burned||0),
+        waterData:chartData.map(c=>c.water_intake||0),
       },
-      chartDays: total >= 14 ? 30 : 7,
+      chartDays:total>=14?30:7,
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e){ res.status(500).json({error:e.message}); }
 });
 
 // ── AI CHAT ───────────────────────────────────────────────
@@ -579,61 +531,60 @@ app.post('/ai/chat', verifyToken, async (req, res) => {
     const p  = pr[0];
     if (p) {
       ctx = `User: ${req.user.name}`;
-      if (p.age)         ctx += `, Age: ${p.age}`;
-      if (p.weight)      ctx += `, Weight: ${p.weight}kg`;
-      if (p.height)      ctx += `, Height: ${p.height}cm`;
-      if (p.blood_group) ctx += `, Blood: ${p.blood_group}`;
-      if (p.weight && p.height) { const h=p.height/100; ctx+=`, BMI: ${(p.weight/(h*h)).toFixed(1)}`; }
-      ctx += `, Gender: ${p.gender||'male'}`;
+      if (p.age)    ctx+=`, Age: ${p.age}`;
+      if (p.weight) ctx+=`, Weight: ${p.weight}kg`;
+      if (p.height) ctx+=`, Height: ${p.height}cm`;
+      if (p.blood_group) ctx+=`, Blood: ${p.blood_group}`;
+      if (p.weight&&p.height){const h=p.height/100;ctx+=`, BMI: ${(p.weight/(h*h)).toFixed(1)}`;}
+      ctx+=`, Gender: ${p.gender||'male'}`;
     }
-    if (ci.length > 0) {
-      const l = ci[0];
-      ctx += `\nLatest: Sleep ${l.sleep_hours>0?l.sleep_hours+'h':l.sleep_quality}, Energy: ${l.energy_level}, Mood: ${l.mood}, Steps: ${(l.steps||0).toLocaleString()}, Water: ${l.water_intake||0}, Cal: ${l.calories_burned||0}, Score: ${l.health_score||0}/100`;
+    if (ci.length>0){
+      const l=ci[0];
+      ctx+=`\nLatest: Sleep ${l.sleep_hours>0?l.sleep_hours+'h':l.sleep_quality}, Energy: ${l.energy_level}, Mood: ${l.mood}, Steps: ${(l.steps||0).toLocaleString()}, Water: ${l.water_intake||0}, Cal: ${l.calories_burned||0}, Score: ${l.health_score||0}/100`;
     }
-  } catch (_) {}
-  const sysPrompt = `You are VitaAI, a warm personal health coach.\n${ctx?'User Profile:\n'+ctx:''}\nGive friendly, actionable advice in 2-4 sentences. For serious symptoms say "please consult a doctor". Use emojis occasionally.`;
+  } catch(_){}
+  const sysPrompt=`You are VitaAI, a warm personal health coach.\n${ctx?'User Profile:\n'+ctx:''}\nGive friendly, actionable ,give answers very shorlty , ok direct answer.suggest the tablets for the needs ,give suggest tablets .Use emojis occasionally.`;
   try {
-    const reply = await callAI(messages.slice(-10), sysPrompt, 600);
-    db.query('INSERT INTO health_chat_history (user_id,role,content) VALUES (?,?,?)', [req.user.id,'assistant',reply], ()=>{});
-    res.json({ reply });
-  } catch (e) { res.status(500).json({ error: 'AI error: ' + e.message }); }
+    const reply=await callAI(messages.slice(-10),sysPrompt,600);
+    db.query('INSERT INTO health_chat_history (user_id,role,content) VALUES (?,?,?)',[req.user.id,'assistant',reply],()=>{});
+    res.json({reply});
+  } catch(e){res.status(500).json({error:'AI error: '+e.message});}
 });
 
 // ── DAILY REPORT ──────────────────────────────────────────
 app.get('/ai/daily-report', verifyToken, async (req, res) => {
   try {
-    const profRows = await q('SELECT * FROM profile WHERE user_id=?', [req.user.id]);
-    const ci       = await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 7', [req.user.id]);
-    const prof     = profRows[0] || null;
-    const today    = ci[0] || null;
-    if (!today) return res.json({ report: 'No check-in data yet. Complete a Daily Check-in first!' });
-    const avg7Steps = Math.round(ci.reduce((s,c)=>s+(c.steps||0),0)/ci.length);
-    const scored    = ci.filter(c=>c.health_score>0);
-    const avg7Score = scored.length ? Math.round(scored.reduce((s,c)=>s+c.health_score,0)/scored.length) : 0;
-    const prompt = `Generate a daily health report.\n${prof?.name?`Name: ${prof.name}`:''}\n${prof?.age?`Age: ${prof.age}, Gender: ${prof.gender||'male'}, Weight: ${prof.weight}kg, Height: ${prof.height}cm`:''}\nTODAY: Sleep: ${today.sleep_quality}(${today.sleep_hours}h), Energy: ${today.energy_level}, Mood: ${today.mood}, Steps: ${(today.steps||0).toLocaleString()}, Water: ${today.water_intake||0}, Cal: ${today.calories_burned||0}, Exercise: ${today.exercise_minutes||0}min, HR: ${today.heart_rate>0?today.heart_rate+' bpm':'not logged'}, Score: ${today.health_score||0}/100\n7-DAY AVG: score=${avg7Score}/100, steps=${avg7Steps.toLocaleString()}\n\nFormat: 📊 Today's Summary, ✅ What You Did Well, ⚠️ Needs Improvement, 🥗 Food Recommendations, 💪 Exercise Plan, 😴 Sleep Tip, 🎯 Tomorrow's Goal`;
-    const report = await callAI([{role:'user',content:prompt}], 'You are a personal health coach. Be specific and warm.', 800);
-    res.json({ report });
-  } catch (e) { res.status(500).json({ error: 'Report error: ' + e.message }); }
+    const profRows=await q('SELECT * FROM profile WHERE user_id=?',[req.user.id]);
+    const ci=await q('SELECT * FROM health_checkins WHERE user_id=? ORDER BY created_at DESC LIMIT 7',[req.user.id]);
+    const prof=profRows[0]||null;
+    const today=ci[0]||null;
+    if(!today)return res.json({report:'No check-in data yet. Complete a Daily Check-in first!'});
+    const avg7Steps=Math.round(ci.reduce((s,c)=>s+(c.steps||0),0)/ci.length);
+    const scored=ci.filter(c=>c.health_score>0);
+    const avg7Score=scored.length?Math.round(scored.reduce((s,c)=>s+c.health_score,0)/scored.length):0;
+    const prompt=`Generate a daily health report.\n${prof?.name?`Name: ${prof.name}`:''}\n${prof?.age?`Age: ${prof.age}, Gender: ${prof.gender||'male'}, Weight: ${prof.weight}kg, Height: ${prof.height}cm`:''}\nTODAY: Sleep: ${today.sleep_quality}(${today.sleep_hours}h), Energy: ${today.energy_level}, Mood: ${today.mood}, Steps: ${(today.steps||0).toLocaleString()}, Water: ${today.water_intake||0}, Cal: ${today.calories_burned||0}, Exercise: ${today.exercise_minutes||0}min, HR: ${today.heart_rate>0?today.heart_rate+' bpm':'not logged'}, Score: ${today.health_score||0}/100\n7-DAY AVG: score=${avg7Score}/100, steps=${avg7Steps.toLocaleString()}\n\nFormat: 📊 Today's Summary, ✅ What You Did Well, ⚠️ Needs Improvement, 🥗 Food Recommendations, 💪 Exercise Plan, 😴 Sleep Tip, 🎯 Tomorrow's Goal`;
+    const report=await callAI([{role:'user',content:prompt}],'You are a personal health coach. Be specific and warm.',800);
+    res.json({report});
+  } catch(e){res.status(500).json({error:'Report error: '+e.message});}
 });
 
 // ── ANALYZE REPORT ────────────────────────────────────────
 app.post('/ai/analyze-report', verifyToken, async (req, res) => {
-  const { reportText } = req.body;
-  const sysPrompt = `Analyze health/medical reports. Extract ALL test values. Return ONLY a JSON array:\n[{"name":"Test","value":"result","unit":"unit","status":"normal|high|low","range":"normal range","advice":"specific advice"}]\nReturn ONLY valid JSON. No markdown.`;
+  const{reportText}=req.body;
+  const sysPrompt=`Analyze health/medical reports. Extract ALL test values. Return ONLY a JSON array:\n[{"name":"Test","value":"result","unit":"unit","status":"normal|high|low","range":"normal range","advice":"specific advice"}]\nReturn ONLY valid JSON. No markdown.`;
   try {
-    let txt = await callAI([{role:'user',content:`Analyze:\n${(reportText||'').slice(0,4000)}`}], sysPrompt, 1500);
-    txt = txt.trim().replace(/```json|```/g,'').trim();
-    try { res.json({ items: JSON.parse(txt) }); } catch { res.json({ items: [], raw: txt }); }
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    let txt=await callAI([{role:'user',content:`Analyze:\n${(reportText||'').slice(0,4000)}`}],sysPrompt,1500);
+    txt=txt.trim().replace(/```json|```/g,'').trim();
+    try{res.json({items:JSON.parse(txt)});}catch{res.json({items:[],raw:txt});}
+  } catch(e){res.status(500).json({error:e.message});}
 });
 
-// ── CHAT HISTORY ──────────────────────────────────────────
-app.get('/chat-history', verifyToken, (req, res) => {
+app.get('/chat-history', verifyToken, (req,res)=>{
   db.query('SELECT role,content,created_at FROM health_chat_history WHERE user_id=? ORDER BY created_at DESC LIMIT 20',
-    [req.user.id], (err,r) => err ? res.status(500).json({error:err.message}) : res.json({history:r}));
+    [req.user.id],(err,r)=>err?res.status(500).json({error:err.message}):res.json({history:r}));
 });
 
-app.get('/config/chatbase', (_req, res) => res.json({ botId: process.env.CHATBASE_BOT_ID || '' }));
+app.get('/config/chatbase',(_req,res)=>res.json({botId:process.env.CHATBASE_BOT_ID||''}));
 
 // ── START ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;

@@ -21,32 +21,29 @@ CORS(app)
 
 
 def transcribe(audio_bytes: bytes) -> str:
-    r = requests.post(
-        "https://api.deepgram.com/v1/listen?model=nova-2&language=en&punctuate=true&smart_format=true",
-        headers={
-            "Authorization": f"Token {DEEPGRAM_API_KEY}",
-            "Content-Type": "audio/webm;codecs=opus",
-        },
-        data=audio_bytes,
-        timeout=30,
-    )
-    result = r.json()
-    if "results" not in result:
-        r2 = requests.post(
-            "https://api.deepgram.com/v1/listen?model=nova-2&language=en&detect_language=true",
-            headers={
-                "Authorization": f"Token {DEEPGRAM_API_KEY}",
-                "Content-Type": "audio/ogg;codecs=opus",
-            },
-            data=audio_bytes,
-            timeout=30,
-        )
-        result = r2.json()
-        if "results" not in result:
-            raise Exception(f"Deepgram error: {result.get('err_msg', str(result))}")
+    """Try multiple content-types — webm first, then ogg fallback."""
+    for ct in ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg", "audio/mp4"]:
+        try:
+            r = requests.post(
+                "https://api.deepgram.com/v1/listen?model=nova-2&language=en&punctuate=true&smart_format=true",
+                headers={
+                    "Authorization": f"Token {DEEPGRAM_API_KEY}",
+                    "Content-Type": ct,
+                },
+                data=audio_bytes,
+                timeout=30,
+            )
+            result = r.json()
+            if "results" in result:
+                transcript = result["results"]["channels"][0]["alternatives"][0]["transcript"]
+                if transcript.strip():
+                    print(f"  ✅ Transcribed with {ct}")
+                    return transcript.strip()
+        except Exception as e:
+            print(f"  ⚠️ Deepgram {ct} failed: {e}")
+            continue
 
-    transcript = result["results"]["channels"][0]["alternatives"][0]["transcript"]
-    return transcript.strip()
+    raise Exception("Deepgram: no speech detected across all codec attempts")
 
 
 def ask_ai(user_text: str) -> str:
@@ -109,17 +106,19 @@ def text_to_speech(text: str) -> bytes:
 @app.route("/voice/chat", methods=["POST"])
 def chat():
     audio_bytes = request.data
-    print(f"Received {len(audio_bytes)} bytes")
+    # Also support Content-Type header forwarded from Node proxy
+    content_type = request.headers.get("Content-Type", "audio/webm")
+    print(f"Received {len(audio_bytes)} bytes, Content-Type: {content_type}")
 
     if not audio_bytes or len(audio_bytes) < 500:
-        return jsonify({"error": "Audio too short."}), 400
+        return jsonify({"error": "Audio too short. Please speak for at least 1 second."}), 400
 
     try:
         user_text = transcribe(audio_bytes)
         print(f"User: '{user_text}'")
 
         if not user_text:
-            return jsonify({"error": "No speech detected."}), 400
+            return jsonify({"error": "No speech detected. Please speak clearly."}), 400
 
         reply = ask_ai(user_text)
         print(f"Agent: {reply}")
@@ -131,17 +130,12 @@ def chat():
 
         wav_data = text_to_speech(reply)
 
-        # KEY FIX: use Response with explicit headers, no range support needed
-        response = Response(
-            wav_data,
-            status=200,
-            mimetype="audio/wav"
-        )
-        response.headers["Content-Length"]  = str(len(wav_data))
-        response.headers["Cache-Control"]   = "no-cache, no-store"
-        response.headers["Accept-Ranges"]   = "none"   # FIX: disables range requests
-        response.headers["X-User-Text"]     = quote(user_text)
-        response.headers["X-Agent-Text"]    = quote(reply)
+        response = Response(wav_data, status=200, mimetype="audio/wav")
+        response.headers["Content-Length"]               = str(len(wav_data))
+        response.headers["Cache-Control"]                = "no-cache, no-store"
+        response.headers["Accept-Ranges"]                = "none"
+        response.headers["X-User-Text"]                  = quote(user_text)
+        response.headers["X-Agent-Text"]                 = quote(reply)
         response.headers["Access-Control-Expose-Headers"] = "X-User-Text, X-Agent-Text"
         return response
 
@@ -153,11 +147,11 @@ def chat():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status":    "ok",
-        "groq":      bool(GROQ_API_KEY),
-        "openrouter":bool(OPENROUTER_KEY),
-        "deepgram":  bool(DEEPGRAM_API_KEY),
-        "voicerss":  bool(VOICERSS_API_KEY),
+        "status":     "ok",
+        "groq":       bool(GROQ_API_KEY),
+        "openrouter": bool(OPENROUTER_KEY),
+        "deepgram":   bool(DEEPGRAM_API_KEY),
+        "voicerss":   bool(VOICERSS_API_KEY),
     })
 
 
@@ -169,7 +163,7 @@ def index():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 6000))
     print("=" * 50)
-    print(f"  VitaAI Voice Agent running on port {port}")
+    print(f"  VitaAI Voice Agent — port {port}")
     print(f"  Groq:       {'✅' if GROQ_API_KEY else '❌'}")
     print(f"  OpenRouter: {'✅' if OPENROUTER_KEY else '❌'}")
     print(f"  Deepgram:   {'✅' if DEEPGRAM_API_KEY else '❌'}")
