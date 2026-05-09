@@ -41,8 +41,9 @@ input::placeholder{color:var(--muted);}
 .msg.info{background:rgba(123,111,255,.1);border:1px solid rgba(123,111,255,.3);color:#7b6fff;}
 .link{text-align:center;margin-top:20px;font-size:13px;color:var(--muted);}
 .link a{color:var(--primary);text-decoration:none;}
-.camera-box{border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:12px;}
+.camera-box{border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:12px;position:relative;}
 #videoBox{width:100%;height:100%;object-fit:cover;display:block;}
+.cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.3);font-size:13px;pointer-events:none;}
 @media(max-width:768px){.left{display:none;}.right{padding:24px;}}
 </style>
 </head>
@@ -57,26 +58,33 @@ input::placeholder{color:var(--muted);}
     <div class="stat-box"><div class="stat-num">100%</div><div class="stat-txt">Free forever</div></div>
   </div>
 </div>
+
 <div class="right">
   <div class="card">
     <div class="card-title">Welcome Back</div>
     <div class="card-sub">Login to your VitaAI health dashboard</div>
+
     <div class="tabs">
       <button class="tab active" onclick="switchTab('face')">😊 Face Login</button>
       <button class="tab" onclick="switchTab('password')">🔑 Password</button>
     </div>
+
     <!-- FACE LOGIN -->
     <div class="tab-content active" id="tabFace">
       <div class="form-group">
         <label>Your Email</label>
         <input id="faceEmail" type="email" placeholder="you@example.com"/>
       </div>
-      <div class="camera-box"><video id="videoBox" autoplay playsinline muted></video></div>
+      <div class="camera-box">
+        <video id="videoBox" autoplay playsinline muted></video>
+        <div class="cam-overlay" id="camOverlay">📷 Click Open Camera</div>
+      </div>
       <canvas id="canvas" style="display:none"></canvas>
       <button class="btn-secondary" onclick="startCamera()">📷 Open Camera</button>
-      <button class="btn-main" onclick="faceLogin()">😊 Scan Face & Login</button>
+      <button class="btn-main" onclick="faceLogin()">😊 Scan Face &amp; Login</button>
       <div id="faceMsg" class="msg"></div>
     </div>
+
     <!-- PASSWORD LOGIN -->
     <div class="tab-content" id="tabPassword">
       <div class="form-group">
@@ -85,25 +93,27 @@ input::placeholder{color:var(--muted);}
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input id="password" type="password" placeholder="Your password"/>
+        <input id="password" type="password" placeholder="Your password"
+               onkeydown="if(event.key==='Enter')passwordLogin()"/>
       </div>
       <button class="btn-main" onclick="passwordLogin()">🔑 Login</button>
       <div id="passMsg" class="msg"></div>
     </div>
+
     <div class="link">Don't have an account? <a href="signup.html">Create one free →</a></div>
   </div>
 </div>
+
 <script>
-// ── NO AUTO-LOGIN: Always show login page, even if token exists ──
-// Token is cleared on logout in home.html; user must always log in fresh.
-// We do NOT redirect here even if a token is present, because the user
-// explicitly logged out and should authenticate again.
+// ── FACE SERVER URL — only for face verify ──
+// face-login (JWT token) goes to the MAIN Node server (same origin)
+const FACE_SERVER = 'https://vitaai-face-latest.onrender.com';
 
 let stream = null;
 
 function switchTab(t) {
   document.querySelectorAll('.tab').forEach((b,i) =>
-    b.classList.toggle('active',(t==='face'&&i===0)||(t==='password'&&i===1)));
+    b.classList.toggle('active', (t==='face'&&i===0)||(t==='password'&&i===1)));
   document.getElementById('tabFace').classList.toggle('active', t==='face');
   document.getElementById('tabPassword').classList.toggle('active', t==='password');
   if (t !== 'face' && stream) { stream.getTracks().forEach(x => x.stop()); stream = null; }
@@ -111,62 +121,104 @@ function switchTab(t) {
 
 function showMsg(id, text, type) {
   const el = document.getElementById(id);
-  el.textContent = text; el.className = 'msg ' + type; el.style.display = 'block';
+  el.textContent = text;
+  el.className   = 'msg ' + type;
+  el.style.display = 'block';
 }
 
 async function startCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    document.getElementById('videoBox').srcObject = stream;
-    showMsg('faceMsg', 'Camera ready. Look straight at camera.', 'info');
-  } catch(e) { showMsg('faceMsg', 'Camera denied. Allow camera access.', 'error'); }
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    const v = document.getElementById('videoBox');
+    v.srcObject = stream;
+    document.getElementById('camOverlay').style.display = 'none';
+    showMsg('faceMsg', '✅ Camera ready. Look straight at camera, then click Scan.', 'info');
+  } catch(e) {
+    showMsg('faceMsg', '❌ Camera access denied. Please allow camera in browser settings.', 'error');
+  }
 }
 
 async function faceLogin() {
   const email  = document.getElementById('faceEmail').value.trim();
   const video  = document.getElementById('videoBox');
   const canvas = document.getElementById('canvas');
-  if (!email) { showMsg('faceMsg', 'Enter your email first.', 'error'); return; }
-  if (!video.srcObject) { showMsg('faceMsg', 'Open camera first.', 'error'); return; }
-  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+
+  if (!email)            { showMsg('faceMsg', '⚠️ Enter your email first.', 'error'); return; }
+  if (!video.srcObject)  { showMsg('faceMsg', '⚠️ Open camera first.', 'error'); return; }
+
+  showMsg('faceMsg', '🔍 Scanning your face…', 'info');
+
+  // Capture frame
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
   canvas.getContext('2d').drawImage(video, 0, 0);
-  showMsg('faceMsg', '🔍 Scanning face…', 'info');
+  const imgData = canvas.toDataURL('image/jpeg', 0.9);
+
   try {
-    const fr = await fetch('https://vitaai-face-latest.onrender.com/face/verify', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, img: canvas.toDataURL('image/jpeg') })
+    // Step 1: Verify face on face server
+    const fr = await fetch(`${FACE_SERVER}/face/verify`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, img: imgData }),
     });
+
+    if (!fr.ok) {
+      showMsg('faceMsg', `❌ Face server error (${fr.status}). Try again.`, 'error');
+      return;
+    }
+
     const fd = await fr.json();
-    if (!fd.ok) { showMsg('faceMsg', '❌ ' + fd.msg, 'error'); return; }
-    showMsg('faceMsg', '✅ Face matched! Logging in…', 'success');
-    const lr = await fetch('https://vitaai-face-latest.onrender.com/face-login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+    if (!fd.ok) {
+      showMsg('faceMsg', '❌ ' + fd.msg, 'error');
+      return;
+    }
+
+    showMsg('faceMsg', '✅ Face matched! Getting your token…', 'success');
+
+    // Step 2: Get JWT from MAIN Node server (same origin — no full URL needed)
+    const lr = await fetch('/face-login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email }),
     });
+
     const ld = await lr.json();
     if (ld.token) {
       localStorage.setItem('token', ld.token);
       if (stream) stream.getTracks().forEach(t => t.stop());
-      window.location.href = 'home.html';
-    } else { showMsg('faceMsg', '❌ ' + ld.message, 'error'); }
-  } catch(e) { showMsg('faceMsg', '⚠️ Server error. Make sure server is running.', 'error'); }
+      showMsg('faceMsg', '🎉 Login successful! Redirecting…', 'success');
+      setTimeout(() => { window.location.href = 'home.html'; }, 600);
+    } else {
+      showMsg('faceMsg', '❌ ' + (ld.message || 'Token error. Try password login.'), 'error');
+    }
+
+  } catch(e) {
+    console.error('Face login error:', e);
+    showMsg('faceMsg', '⚠️ Connection error: ' + e.message, 'error');
+  }
 }
 
 async function passwordLogin() {
   const email = document.getElementById('email').value.trim();
   const pass  = document.getElementById('password').value;
-  if (!email || !pass) { showMsg('passMsg', 'Please fill all fields.', 'error'); return; }
+  if (!email || !pass) { showMsg('passMsg', '⚠️ Please fill all fields.', 'error'); return; }
+  showMsg('passMsg', 'Logging in…', 'info');
   try {
     const r = await fetch('/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pass })
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password: pass }),
     });
     const d = await r.json();
     if (d.token) {
       localStorage.setItem('token', d.token);
       window.location.href = 'home.html';
-    } else { showMsg('passMsg', '❌ ' + d.message, 'error'); }
-  } catch(e) { showMsg('passMsg', '⚠️ Server error.', 'error'); }
+    } else {
+      showMsg('passMsg', '❌ ' + (d.message || 'Login failed.'), 'error');
+    }
+  } catch(e) {
+    showMsg('passMsg', '⚠️ Server error. Is the server running?', 'error');
+  }
 }
 </script>
 </body>
