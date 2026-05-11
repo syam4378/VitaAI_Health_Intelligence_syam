@@ -229,7 +229,7 @@
   <div class="topbar">
     <div>
       <div class="pg-title">🧠 <span>Health AI Chat</span></div>
-      <span style="font-size:12px;color:var(--muted)">Powered by SyamHealth · Knows your health data</span>
+      <span style="font-size:12px;color:var(--muted)">Powered by LLaMA3 · Knows your health data</span>
     </div>
     <button class="btn btn-back" onclick="goBack()">← Back</button>
   </div>
@@ -735,15 +735,12 @@ const ciSteps=[
   {id:'mood',type:'opts',q:'How are you feeling emotionally?',opts:['😔 Sad/Anxious','😐 Neutral','😊 Good','🌟 Great!']},
   {id:'activity',type:'fields',q:'🏃 Steps & Activity Today',fields:[
     {id:'steps',label:'Steps walked today',type:'number',ph:'e.g. 8500',hint:'💡 Check Google Fit (Android) or Apple Health (iPhone) for your auto-counted steps'},
-    {id:'cal',label:'Calories burned (kcal)',type:'number',ph:'e.g. 380',hint:'From fitness tracker — or leave blank, we estimate from steps'},
     {id:'exMins',label:'Exercise duration (minutes)',type:'number',ph:'e.g. 30'},
     {id:'exType',label:'Exercise type (optional)',type:'text',ph:'e.g. walking, gym, yoga'}
   ]},
   {id:'hydration',type:'fields',q:'💧 Hydration & Body',fields:[
     {id:'water',label:'Water intake (glasses)',type:'number',ph:'e.g. 6',hint:'1 glass = 250ml · Daily goal: 8 glasses'},
-    {id:'sleepHrs',label:'Exact sleep hours',type:'number',step:'0.5',ph:'e.g. 7.5',hint:'For accurate health score'},
-    {id:'bweight',label:'Body weight today (kg, optional)',type:'number',step:'0.1',ph:'e.g. 68.5'},
-    {id:'hr',label:'Heart Rate (bpm, optional)',type:'number',ph:'e.g. 72',hint:'From smartwatch or pulse check'}
+    {id:'bweight',label:'Body weight today (kg, optional)',type:'number',step:'0.1',ph:'e.g. 68.5'}
   ]},
   {id:'notes',type:'textarea',q:'📝 Notes for today (optional)',ph:'e.g. Felt headache in morning, skipped lunch, stressed about work...'}
 ];
